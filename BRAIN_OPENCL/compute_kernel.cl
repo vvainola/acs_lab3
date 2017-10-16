@@ -209,7 +209,7 @@ void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
     mod_prec vSoma;
     mod_prec prevComp1;
     mod_prec prevComp2;
-    CompRet  retVals;
+    CompRet retVals;
 
     // update somatic components
     // SCHWEIGHOFER:
@@ -222,10 +222,13 @@ void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
     cellCompParamsPtr[step.newCellIdx + SOMA_CK] = retVals.ret1;
     cellCompParamsPtr[step.newCellIdx + SOMA_CL] = retVals.ret2;
 
-    //Prepare pointers to inputs/outputs
-
-    //Compute
-    //SomaSodium();
+    // SomaSodium
+    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
+    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_SM];
+    prevComp2 = cellCompParamsPtr[step.prevCellIdx + SOMA_SH];
+    retVals = SomaSodium(vSoma, prevComp1, prevComp2);
+    cellCompParamsPtr[step.newCellIdx + SOMA_SM] = retVals.ret1;
+    cellCompParamsPtr[step.newCellIdx + SOMA_SH] = retVals.ret2;
 
     //Prepare pointers to inputs/outputs
 
@@ -248,7 +251,7 @@ CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     mod_prec k_inf, l_inf, tau_k, tau_l, dk_dt, dl_dt, k_local, l_local;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma;            //*chPrms->v;
+    mod_prec prevV_soma = vSoma;        //*chPrms->v;
     mod_prec prevCalcium_k = prevComp1; //*chPrms->prevComp1;
     mod_prec prevCalcium_l = prevComp2; //*chPrms->prevComp2;
 
@@ -267,15 +270,15 @@ CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     return retVals;
 }
 
-void SomaSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_prevComp2, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2)
+CompRet SomaSodium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
 {
 
     mod_prec m_inf, h_inf, tau_h, dh_dt, m_local, h_local;
 
     //Get inputs
-    mod_prec prevV_soma = *chPrms_v; //*chPrms->v;
+    mod_prec prevV_soma = vSoma; //*chPrms->v;
     //mod_prec prevSodium_m = *chPrms->prevComp1;
-    mod_prec prevSodium_h = *chPrms_prevComp2; //*chPrms->prevComp2;
+    mod_prec prevSodium_h = prevComp2; //*chPrms->prevComp2;
 
     // RAT THALAMOCORTICAL SODIUM:
     m_inf = 1 / (1 + (exp((-30 - prevV_soma) / 5.5)));
@@ -285,10 +288,10 @@ void SomaSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms
     m_local = m_inf;
     h_local = prevSodium_h + DELTA * dh_dt;
     //Put result
-    *chPrms_newComp1 = m_local; //*chPrms->newComp1
-    *chPrms_newComp2 = h_local; //*chPrms->newComp2
-
-    return;
+    CompRet retVals;
+    retVals.ret1 = m_local; //*chPrms->newComp1
+    retVals.ret2 = h_local; //*chPrms->newComp2
+    return retVals;
 }
 
 void SomaPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_prevComp2, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2)
