@@ -372,15 +372,15 @@ mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1)
     return x_s_local; //*chPrms->newComp1
 }
 mod_prec SomaCurrVolt(mod_prec g_CaL,
-                  mod_prec prevV_dend,
-                  mod_prec prevV_soma,
-                  mod_prec prevV_axon,
-                  mod_prec k,
-                  mod_prec l,
-                  mod_prec m,
-                  mod_prec h,
-                  mod_prec n,
-                  mod_prec x_s)
+                      mod_prec prevV_dend,
+                      mod_prec prevV_soma,
+                      mod_prec prevV_axon,
+                      mod_prec k,
+                      mod_prec l,
+                      mod_prec m,
+                      mod_prec h,
+                      mod_prec n,
+                      mod_prec x_s)
 {
     //Local variables
     mod_prec I_ds, I_CaL, I_Na_s, I_ls, I_Kdr_s, I_K_s, I_as, dVs_dt;
@@ -423,15 +423,22 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
 
     // update somatic components
     // SCHWEIGHOFER:
+    mod_prec vAxon;
+    mod_prec prevComp1;
+    mod_prec prevComp2;
+    CompRet retVals;
 
-    //Prepare pointers to inputs/outputs
+    // AxonSodium
+    vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V];
+    prevComp1 = cellCompParamsPtr[step.prevCellIdx + AXON_SH];
+    retVals = AxonSodium(vAxon, prevComp1);
+    cellCompParamsPtr[step.newCellIdx + AXON_SH] = retVals.ret1;
+    cellCompParamsPtr[step.newCellIdx + AXON_SM] = retVals.ret2;
 
-    //Compute
-    //AxonSodium();
-
-    //Prepare pointers to inputs/outputs
-    //Compute
-    //AxonPotassium();
+    // AxonPotassium
+    // vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V];
+    prevComp1 = cellCompParamsPtr[step.prevCellIdx + AXON_P];
+    cellCompParamsPtr[step.newCellIdx + AXON_P] = AxonPotassium(vAxon, prevComp1);
 
     //Get inputs
     //AxonCurrVolt();
@@ -439,14 +446,14 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     return;
 }
 
-void AxonSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2)
+CompRet AxonSodium(mod_prec vAxon, mod_prec prevComp1)
 {
 
     mod_prec m_inf_a, h_inf_a, tau_h_a, dh_dt_a, m_a_local, h_a_local;
 
     //Get inputs
-    mod_prec prevV_axon = *chPrms_v;             //*chPrms->v;
-    mod_prec prevSodium_h_a = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_axon = vAxon;         //*chPrms->v;
+    mod_prec prevSodium_h_a = prevComp1; //*chPrms->prevComp1;
 
     // Update axonal Na components
     // NOTE: current has shortened inactivation to account for high
@@ -458,20 +465,20 @@ void AxonSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms
     m_a_local = m_inf_a;
     h_a_local = prevSodium_h_a + DELTA * dh_dt_a;
     //Put result
-    *chPrms_newComp1 = h_a_local; //*chPrms->newComp1
-    *chPrms_newComp2 = m_a_local; //*chPrms->newComp2
-
-    return;
+    CompRet retVals;
+    retVals.ret1 = h_a_local; //*chPrms->newComp1
+    retVals.ret2 = m_a_local; //*chPrms->newComp2
+    return retVals;
 }
 
-void AxonPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1)
+mod_prec AxonPotassium(mod_prec vAxon, mod_prec prevComp1)
 {
 
     mod_prec alpha_x_a, beta_x_a, x_inf_a, tau_x_a, dx_dt_a, x_a_local;
 
     //Get inputs
-    mod_prec prevV_axon = *chPrms_v;                //*chPrms->v;
-    mod_prec prevPotassium_x_a = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_axon = vAxon;            //*chPrms->v;
+    mod_prec prevPotassium_x_a = prevComp1; //*chPrms->prevComp1;
 
     // D'ANGELO 2001 -- Voltage-dependent potassium
     alpha_x_a = 0.13 * (prevV_axon + 25) / (1 - exp(-(prevV_axon + 25) / 10));
@@ -481,9 +488,7 @@ void AxonPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chP
     dx_dt_a = (x_inf_a - prevPotassium_x_a) / tau_x_a;
     x_a_local = 0.05 * dx_dt_a + prevPotassium_x_a;
     //Put result
-    *chPrms_newComp1 = x_a_local; //*chPrms->newComp1
-
-    return;
+    return x_a_local; //*chPrms->newComp1
 }
 
 void AxonCurrVolt(mod_prec *chComps_vSoma, mod_prec *chComps_vAxon, mod_prec *chComps_newVAxon, mod_prec *chComps_m_a, mod_prec *chComps_h_a, mod_prec *chComps_x_a)

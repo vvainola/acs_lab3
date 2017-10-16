@@ -50,8 +50,8 @@ mod_prec SomaCurrVolt(mod_prec g_CaL,
                       mod_prec h,
                       mod_prec n,
                       mod_prec x_s);
-                      
+
 void CompAxon(global mod_prec *cellCompParamsPtr, StepData step);
-void AxonSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2);
-void AxonPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1);
+CompRet AxonSodium(mod_prec vAxon, mod_prec prevComp1);
+mod_prec AxonPotassium(mod_prec vAxon, mod_prec prevComp1);
 void AxonCurrVolt(mod_prec *chComps_vSoma, mod_prec *chComps_vAxon, mod_prec *chComps_newVAxon, mod_prec *chComps_m_a, mod_prec *chComps_h_a, mod_prec *chComps_x_a);
