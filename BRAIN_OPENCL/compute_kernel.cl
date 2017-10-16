@@ -427,6 +427,10 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     mod_prec prevComp1;
     mod_prec prevComp2;
     CompRet retVals;
+    mod_prec vSoma;
+    mod_prec m_a;
+    mod_prec h_a;
+    mod_prec x_a;
 
     // AxonSodium
     vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V];
@@ -440,8 +444,13 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + AXON_P];
     cellCompParamsPtr[step.newCellIdx + AXON_P] = AxonPotassium(vAxon, prevComp1);
 
-    //Get inputs
-    //AxonCurrVolt();
+    // AxonCurrVolt();
+    vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V]; //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V]; //&cellCompParamsPtr->prevCellState->axon.V_axon;
+    m_a = cellCompParamsPtr[step.newCellIdx + AXON_SM];   //&cellCompParamsPtr->newCellState->axon.Sodium_m_a;
+    h_a = cellCompParamsPtr[step.newCellIdx + AXON_SH];   //&cellCompParamsPtr->newCellState->axon.Sodium_h_a;
+    x_a = cellCompParamsPtr[step.newCellIdx + AXON_P];    //&cellCompParamsPtr->newCellState->axon.Potassium_x_a;
+    cellCompParamsPtr[step.newCellIdx + AXON_V] = AxonCurrVolt(vSoma, vAxon, m_a, h_a, x_a);
 
     return;
 }
@@ -491,18 +500,22 @@ mod_prec AxonPotassium(mod_prec vAxon, mod_prec prevComp1)
     return x_a_local; //*chPrms->newComp1
 }
 
-void AxonCurrVolt(mod_prec *chComps_vSoma, mod_prec *chComps_vAxon, mod_prec *chComps_newVAxon, mod_prec *chComps_m_a, mod_prec *chComps_h_a, mod_prec *chComps_x_a)
+mod_prec AxonCurrVolt(mod_prec prevV_soma,
+                      mod_prec prevV_axon,
+                      mod_prec m_a,
+                      mod_prec h_a,
+                      mod_prec x_a)
 {
 
     //Local variable
     mod_prec I_Na_a, I_la, I_sa, I_K_a, dVa_dt;
 
     //Get inputs
-    mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
+    /* mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
     mod_prec prevV_axon = *chComps_vAxon; //*chComps->vAxon;
     mod_prec m_a = *chComps_m_a;          //*chComps->m_a;
     mod_prec h_a = *chComps_h_a;          //*chComps->h_a;
-    mod_prec x_a = *chComps_x_a;          //*chComps->x_a;
+    mod_prec x_a = *chComps_x_a;          //*chComps->x_a; */
 
     // AXONAL CURRENTS
     // Sodium
@@ -515,8 +528,7 @@ void AxonCurrVolt(mod_prec *chComps_vSoma, mod_prec *chComps_vAxon, mod_prec *ch
     //I_K_a   = G_K_A * pow(x_a, 4) * (prevV_axon - V_K);
     I_K_a = G_K_A * x_a * x_a * x_a * x_a * (prevV_axon - V_K);
     dVa_dt = (-(I_K_a + I_sa + I_la + I_Na_a)) / C_M;
-    *chComps_newVAxon = DELTA * dVa_dt + prevV_axon; //*chComps->newVAxon
-    return;
+    return (DELTA * dVa_dt + prevV_axon); //*chComps->newVAxon
 }
 
 /**
