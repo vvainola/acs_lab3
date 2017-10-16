@@ -38,7 +38,7 @@ mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, St
 void CompSoma(global mod_prec *cellCompParamsPtr, StepData step);
 CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 CompRet SomaSodium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
-void SomaPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_prevComp2, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2);
+CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 void SomaPotassiumX(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1);
 void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *chComps_vSoma, mod_prec *chComps_newVSoma, mod_prec *chComps_vAxon, mod_prec *chComps_k, mod_prec *chComps_l, mod_prec *chComps_m, mod_prec *chComps_h, mod_prec *chComps_n, mod_prec *chComps_x_s);
 

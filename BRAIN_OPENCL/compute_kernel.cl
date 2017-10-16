@@ -230,10 +230,13 @@ void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
     cellCompParamsPtr[step.newCellIdx + SOMA_SM] = retVals.ret1;
     cellCompParamsPtr[step.newCellIdx + SOMA_SH] = retVals.ret2;
 
-    //Prepare pointers to inputs/outputs
-
-    //Compute
-    //SomaPotassium();
+    // SomaPotassium
+    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
+    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_PN];
+    prevComp2 = cellCompParamsPtr[step.prevCellIdx + SOMA_PP];
+    retVals = SomaPotassium(vSoma, prevComp1, prevComp2);
+    cellCompParamsPtr[step.newCellIdx + SOMA_PN] = retVals.ret1;
+    cellCompParamsPtr[step.newCellIdx + SOMA_PP] = retVals.ret2;
 
     //Prepare pointers to inputs/outputs
 
@@ -294,15 +297,15 @@ CompRet SomaSodium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     return retVals;
 }
 
-void SomaPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_prevComp2, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2)
+CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
 {
 
     mod_prec n_inf, p_inf, tau_n, tau_p, dn_dt, dp_dt, n_local, p_local;
 
     //Get inputs
-    mod_prec prevV_soma = *chPrms_v;              //*chPrms->v;
-    mod_prec prevPotassium_n = *chPrms_prevComp1; //*chPrms->prevComp1;
-    mod_prec prevPotassium_p = *chPrms_prevComp2; //*chPrms->prevComp2;
+    mod_prec prevV_soma = vSoma;              //*chPrms->v;
+    mod_prec prevPotassium_n = prevComp1; //*chPrms->prevComp1;
+    mod_prec prevPotassium_p = prevComp2; //*chPrms->prevComp2;
 
     // NEOCORTICAL
     n_inf = 1 / (1 + exp((-3 - prevV_soma) / 10));
@@ -314,10 +317,10 @@ void SomaPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chP
     n_local = DELTA * dn_dt + prevPotassium_n;
     p_local = DELTA * dp_dt + prevPotassium_p;
     //Put result
-    *chPrms_newComp1 = n_local; //*chPrms->newComp1
-    *chPrms_newComp2 = p_local; //*chPrms->newComp2
-
-    return;
+    CompRet retVals;
+    retVals.ret1 = n_local; //*chPrms->newComp1
+    retVals.ret2 = p_local;//*chPrms->newComp2
+    return retVals;
 }
 
 void SomaPotassiumX(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1)
