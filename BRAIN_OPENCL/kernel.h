@@ -27,19 +27,19 @@ mod_prec DendCaCurr(mod_prec v, mod_prec prevComp1);
 mod_prec DendKCurr(mod_prec prevComp1, mod_prec prevComp2);
 mod_prec DendCal(mod_prec prevComp1, mod_prec prevComp2);
 CompRet DendCurrVolt(mod_prec I_c,
-                             mod_prec I_app,
-                             mod_prec prevV_dend,
-                             mod_prec prevV_soma,
-                             mod_prec q,
-                             mod_prec r,
-                             mod_prec s);
+                     mod_prec I_app,
+                     mod_prec prevV_dend,
+                     mod_prec prevV_soma,
+                     mod_prec q,
+                     mod_prec r,
+                     mod_prec s);
 mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, StepData step);
 
 void CompSoma(global mod_prec *cellCompParamsPtr, StepData step);
 CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 CompRet SomaSodium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
-void SomaPotassiumX(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1);
+mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1);
 void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *chComps_vSoma, mod_prec *chComps_newVSoma, mod_prec *chComps_vAxon, mod_prec *chComps_k, mod_prec *chComps_l, mod_prec *chComps_m, mod_prec *chComps_h, mod_prec *chComps_n, mod_prec *chComps_x_s);
 
 void CompAxon(global mod_prec *cellCompParamsPtr, StepData step);

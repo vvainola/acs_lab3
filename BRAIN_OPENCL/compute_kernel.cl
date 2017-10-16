@@ -238,10 +238,10 @@ void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
     cellCompParamsPtr[step.newCellIdx + SOMA_PN] = retVals.ret1;
     cellCompParamsPtr[step.newCellIdx + SOMA_PP] = retVals.ret2;
 
-    //Prepare pointers to inputs/outputs
-
-    //Compute
-    //SomaPotassiumX();
+    // SomaPotassiumX
+    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
+    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_PXS];
+    cellCompParamsPtr[step.newCellIdx + SOMA_PXS] = SomaPotassiumX(vSoma, prevComp1);
 
     //SomaCurrVolt();
 
@@ -303,7 +303,7 @@ CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     mod_prec n_inf, p_inf, tau_n, tau_p, dn_dt, dp_dt, n_local, p_local;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma;              //*chPrms->v;
+    mod_prec prevV_soma = vSoma;          //*chPrms->v;
     mod_prec prevPotassium_n = prevComp1; //*chPrms->prevComp1;
     mod_prec prevPotassium_p = prevComp2; //*chPrms->prevComp2;
 
@@ -319,18 +319,18 @@ CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     //Put result
     CompRet retVals;
     retVals.ret1 = n_local; //*chPrms->newComp1
-    retVals.ret2 = p_local;//*chPrms->newComp2
+    retVals.ret2 = p_local; //*chPrms->newComp2
     return retVals;
 }
 
-void SomaPotassiumX(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1)
+mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1)
 {
 
     mod_prec alpha_x_s, beta_x_s, x_inf_s, tau_x_s, dx_dt_s, x_s_local;
 
     //Get inputs
-    mod_prec prevV_soma = *chPrms_v;                //*chPrms->v;
-    mod_prec prevPotassium_x_s = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_soma = vSoma;                //*chPrms->v;
+    mod_prec prevPotassium_x_s = prevComp1; //*chPrms->prevComp1;
 
     // Voltage-dependent (fast) potassium
     alpha_x_s = 0.13 * (prevV_soma + 25) / (1 - exp(-(prevV_soma + 25) / 10));
@@ -340,9 +340,7 @@ void SomaPotassiumX(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *ch
     dx_dt_s = (x_inf_s - prevPotassium_x_s) / tau_x_s;
     x_s_local = 0.05 * dx_dt_s + prevPotassium_x_s;
     //Put result
-    *chPrms_newComp1 = x_s_local; //*chPrms->newComp1
-
-    return;
+    return x_s_local; //*chPrms->newComp1
 }
 void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *chComps_vSoma, mod_prec *chComps_newVSoma, mod_prec *chComps_vAxon, mod_prec *chComps_k, mod_prec *chComps_l, mod_prec *chComps_m, mod_prec *chComps_h, mod_prec *chComps_n, mod_prec *chComps_x_s)
 {
