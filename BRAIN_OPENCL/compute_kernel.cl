@@ -206,9 +206,18 @@ mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, St
 void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
 {
     //define variables
-    mod_prec vSoma;
+    mod_prec vSoma; //*chComps->vSoma;
     mod_prec prevComp1;
     mod_prec prevComp2;
+    mod_prec g_CaL; //*chComps->g_CaL;
+    mod_prec vDend; //*chComps->vDend;
+    mod_prec vAxon; //*chComps->vAxon;
+    mod_prec k;     //*chComps->k;
+    mod_prec l;     //*chComps->l;
+    mod_prec m;     //*chComps->m;
+    mod_prec h;     //*chComps->h;
+    mod_prec n;     //*chComps->n;
+    mod_prec x_s;   //*chComps->x_s;
     CompRet retVals;
 
     // update somatic components
@@ -243,7 +252,27 @@ void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_PXS];
     cellCompParamsPtr[step.newCellIdx + SOMA_PXS] = SomaPotassiumX(vSoma, prevComp1);
 
-    //SomaCurrVolt();
+    // SomaCurrVolt
+    g_CaL = cellCompParamsPtr[step.prevCellIdx + SOMA_G]; //*chComps->g_CaL;
+    vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V]; //*chComps->vDend;
+    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V]; //*chComps->vSoma;
+    vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V]; //*chComps->vAxon;
+    k = cellCompParamsPtr[step.newCellIdx + SOMA_CK];     //*chComps->k;
+    l = cellCompParamsPtr[step.newCellIdx + SOMA_CL];     //*chComps->l;
+    m = cellCompParamsPtr[step.newCellIdx + SOMA_SM];     //*chComps->m;
+    h = cellCompParamsPtr[step.newCellIdx + SOMA_SH];     //*chComps->h;
+    n = cellCompParamsPtr[step.newCellIdx + SOMA_PN];     //*chComps->n;
+    x_s = cellCompParamsPtr[step.newCellIdx + SOMA_PXS];  //*chComps->x_s;
+    cellCompParamsPtr[step.newCellIdx + SOMA_V] = SomaCurrVolt(g_CaL,
+                                                               vDend,
+                                                               vSoma,
+                                                               vAxon,
+                                                               k,
+                                                               l,
+                                                               m,
+                                                               h,
+                                                               n,
+                                                               x_s);
 
     return;
 }
@@ -329,7 +358,7 @@ mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1)
     mod_prec alpha_x_s, beta_x_s, x_inf_s, tau_x_s, dx_dt_s, x_s_local;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma;                //*chPrms->v;
+    mod_prec prevV_soma = vSoma;            //*chPrms->v;
     mod_prec prevPotassium_x_s = prevComp1; //*chPrms->prevComp1;
 
     // Voltage-dependent (fast) potassium
@@ -342,14 +371,22 @@ mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1)
     //Put result
     return x_s_local; //*chPrms->newComp1
 }
-void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *chComps_vSoma, mod_prec *chComps_newVSoma, mod_prec *chComps_vAxon, mod_prec *chComps_k, mod_prec *chComps_l, mod_prec *chComps_m, mod_prec *chComps_h, mod_prec *chComps_n, mod_prec *chComps_x_s)
+mod_prec SomaCurrVolt(mod_prec g_CaL,
+                  mod_prec prevV_dend,
+                  mod_prec prevV_soma,
+                  mod_prec prevV_axon,
+                  mod_prec k,
+                  mod_prec l,
+                  mod_prec m,
+                  mod_prec h,
+                  mod_prec n,
+                  mod_prec x_s)
 {
-
     //Local variables
     mod_prec I_ds, I_CaL, I_Na_s, I_ls, I_Kdr_s, I_K_s, I_as, dVs_dt;
 
     //Get inputs
-    mod_prec g_CaL = *chComps_g_CaL;      //*chComps->g_CaL;
+    /* mod_prec g_CaL = *chComps_g_CaL;      //*chComps->g_CaL;
     mod_prec prevV_dend = *chComps_vDend; //*chComps->vDend;
     mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
     mod_prec prevV_axon = *chComps_vAxon; //*chComps->vAxon;
@@ -358,7 +395,7 @@ void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *ch
     mod_prec m = *chComps_m;              //*chComps->m;
     mod_prec h = *chComps_h;              //*chComps->h;
     mod_prec n = *chComps_n;              //*chComps->n;
-    mod_prec x_s = *chComps_x_s;          //*chComps->x_s;
+    mod_prec x_s = *chComps_x_s;          //*chComps->x_s; */
 
     // SOMATIC CURRENTS
 
@@ -378,9 +415,7 @@ void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *ch
     I_as = (G_INT / (1 - P2)) * (prevV_soma - prevV_axon);
 
     dVs_dt = (-(I_CaL + I_ds + I_as + I_Na_s + I_ls + I_Kdr_s + I_K_s)) / C_M;
-    *chComps_newVSoma = DELTA * dVs_dt + prevV_soma; // *chComps->newVSoma
-
-    return;
+    return (DELTA * dVs_dt + prevV_soma); // *chComps->newVSoma
 }
 
 void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)

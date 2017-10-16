@@ -40,8 +40,17 @@ CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 CompRet SomaSodium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2);
 mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1);
-void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *chComps_vSoma, mod_prec *chComps_newVSoma, mod_prec *chComps_vAxon, mod_prec *chComps_k, mod_prec *chComps_l, mod_prec *chComps_m, mod_prec *chComps_h, mod_prec *chComps_n, mod_prec *chComps_x_s);
-
+mod_prec SomaCurrVolt(mod_prec g_CaL,
+                      mod_prec prevV_dend,
+                      mod_prec prevV_soma,
+                      mod_prec prevV_axon,
+                      mod_prec k,
+                      mod_prec l,
+                      mod_prec m,
+                      mod_prec h,
+                      mod_prec n,
+                      mod_prec x_s);
+                      
 void CompAxon(global mod_prec *cellCompParamsPtr, StepData step);
 void AxonSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2);
 void AxonPotassium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_newComp1);
