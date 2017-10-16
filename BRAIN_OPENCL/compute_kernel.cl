@@ -6,8 +6,8 @@ void ComputeOneCell(global mod_prec *cellCompParamsPtr, StepData step)
 
     //The three compartments can be computed concurrently but only across a single sim step
     CompDend(cellCompParamsPtr, step);
-    CompSoma(cellCompParamsPtr);
-    CompAxon(cellCompParamsPtr);
+    CompSoma(cellCompParamsPtr, step);
+    CompAxon(cellCompParamsPtr, step);
     return;
 }
 
@@ -53,15 +53,15 @@ void CompDend(global mod_prec *cellCompParamsPtr, StepData step)
     mod_prec r = cellCompParamsPtr[step.newCellIdx + DEND_CAL];
     mod_prec s = cellCompParamsPtr[step.newCellIdx + DEND_P];
     //Compute
-    DendCurrVoltRet dendCurrRet = DendCurrVolt(Ic,
-                                               step.iApp,
-                                               vDend,
-                                               vSoma,
-                                               q,
-                                               r,
-                                               s);
-    cellCompParamsPtr[step.newCellIdx + DEND_V] = dendCurrRet.newVDend;
-    cellCompParamsPtr[step.newCellIdx + DEND_I] = dendCurrRet.newI_CaH;
+    CompRet dendCurrRet = DendCurrVolt(Ic,
+                                       step.iApp,
+                                       vDend,
+                                       vSoma,
+                                       q,
+                                       r,
+                                       s);
+    cellCompParamsPtr[step.newCellIdx + DEND_V] = dendCurrRet.ret1;
+    cellCompParamsPtr[step.newCellIdx + DEND_I] = dendCurrRet.ret2;
 
     return;
 }
@@ -142,13 +142,13 @@ mod_prec DendCal(mod_prec prevComp1, mod_prec prevComp2)
     return Ca2Plus_local; //*chPrms->newComp1 //This state value is read in DendKCurr
 }
 
-DendCurrVoltRet DendCurrVolt(mod_prec I_c,
-                             mod_prec I_app,
-                             mod_prec prevV_dend,
-                             mod_prec prevV_soma,
-                             mod_prec q,
-                             mod_prec r,
-                             mod_prec s)
+CompRet DendCurrVolt(mod_prec I_c,
+                     mod_prec I_app,
+                     mod_prec prevV_dend,
+                     mod_prec prevV_soma,
+                     mod_prec q,
+                     mod_prec r,
+                     mod_prec s)
 {
 
     //Local variables
@@ -179,9 +179,9 @@ DendCurrVoltRet DendCurrVolt(mod_prec I_c,
     dVd_dt = (-(I_CaH + I_sd + I_ld + I_K_Ca + I_c + I_h) + I_app) / C_M;
 
     //Put result (update V_dend)
-    DendCurrVoltRet ret;
-    ret.newVDend = DELTA * dVd_dt + prevV_dend; //*chComps->newVDend
-    ret.newI_CaH = I_CaH;                       //*chComps->newI_CaH //This is a state value read in DendCal
+    CompRet ret;
+    ret.ret1 = DELTA * dVd_dt + prevV_dend; //*chComps->newVDend
+    ret.ret2 = I_CaH;                       //*chComps->newI_CaH //This is a state value read in DendCal
     return ret;
 }
 mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, StepData step)
@@ -203,17 +203,24 @@ mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, St
     return I_c;
 }
 
-void CompSoma(global mod_prec *cellCompParamsPtr)
+void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
 {
     //define variables
+    mod_prec vSoma;
+    mod_prec prevComp1;
+    mod_prec prevComp2;
+    CompRet  retVals;
 
     // update somatic components
     // SCHWEIGHOFER:
 
-    //Prepare pointers to inputs/outputs
-
-    //Compute
-    //SomaCalcium();
+    // SomaCalcium
+    vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
+    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_CK];
+    prevComp2 = cellCompParamsPtr[step.prevCellIdx + SOMA_CL];
+    retVals = SomaCalcium(vSoma, prevComp1, prevComp2);
+    cellCompParamsPtr[step.newCellIdx + SOMA_CK] = retVals.ret1;
+    cellCompParamsPtr[step.newCellIdx + SOMA_CL] = retVals.ret2;
 
     //Prepare pointers to inputs/outputs
 
@@ -235,15 +242,15 @@ void CompSoma(global mod_prec *cellCompParamsPtr)
     return;
 }
 
-void SomaCalcium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_prevComp2, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2)
+CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
 {
 
     mod_prec k_inf, l_inf, tau_k, tau_l, dk_dt, dl_dt, k_local, l_local;
 
     //Get inputs
-    mod_prec prevV_soma = *chPrms_v;            //*chPrms->v;
-    mod_prec prevCalcium_k = *chPrms_prevComp1; //*chPrms->prevComp1;
-    mod_prec prevCalcium_l = *chPrms_prevComp2; //*chPrms->prevComp2;
+    mod_prec prevV_soma = vSoma;            //*chPrms->v;
+    mod_prec prevCalcium_k = prevComp1; //*chPrms->prevComp1;
+    mod_prec prevCalcium_l = prevComp2; //*chPrms->prevComp2;
 
     k_inf = (1 / (1 + exp(-1 * (prevV_soma + 61) / 4.2)));
     l_inf = (1 / (1 + exp((prevV_soma + 85.5) / 8.5)));
@@ -254,10 +261,10 @@ void SomaCalcium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrm
     k_local = DELTA * dk_dt + prevCalcium_k;
     l_local = DELTA * dl_dt + prevCalcium_l;
     //Put result
-    *chPrms_newComp1 = k_local; //*chPrms->newComp1
-    *chPrms_newComp2 = l_local; //*chPrms->newComp2
-
-    return;
+    CompRet retVals;
+    retVals.ret1 = k_local; //*chPrms->newComp1
+    retVals.ret2 = l_local; //*chPrms->newComp2
+    return retVals;
 }
 
 void SomaSodium(mod_prec *chPrms_v, mod_prec *chPrms_prevComp1, mod_prec *chPrms_prevComp2, mod_prec *chPrms_newComp1, mod_prec *chPrms_newComp2)
@@ -372,7 +379,7 @@ void SomaCurrVolt(mod_prec *chComps_g_CaL, mod_prec *chComps_vDend, mod_prec *ch
     return;
 }
 
-void CompAxon(global mod_prec *cellCompParamsPtr)
+void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
 {
 
     // update somatic components
