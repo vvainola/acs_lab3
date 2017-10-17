@@ -48,11 +48,7 @@
 typedef cl_double cl_mod_prec;
 //typedef cl_float cl_mod_prec
 
-typedef struct StepData{
-	cl_mod_prec iApp;  // External input of the dendrite
-	cl_int x;       // current position in dimension 1 of the IO network
-	cl_int y;       // current position in dimension 2 of the IO network
-} StepData;
+
 
 
 

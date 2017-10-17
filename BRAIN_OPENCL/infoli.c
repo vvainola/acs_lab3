@@ -413,12 +413,12 @@ int main(int argc, char *argv[])
     // STEP 10: Configure the work-item structure
     //-----------------------------------------------------
     size_t globalWorkSize[2];
-    //globalWorkSize[0] = IO_NETWORK_SIZE;
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
 
-    size_t localWorkSize[1];
-    localWorkSize[0] = 1;
+    //Not used yet
+    //size_t localWorkSize[1];
+    //localWorkSize[0] = 1;
 
     for (i = 0; i < simSteps; i++)
     {
@@ -534,11 +534,11 @@ int main(int argc, char *argv[])
                 bufferCellState,
                 CL_TRUE,
                 0,
-                IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * PARAM_SIZE * sizeof(cl_double),
+                2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
                 cellStatePtr,
                 1,
                 &computeDone,
-                NULL);
+                &readDone);
             if (status != CL_SUCCESS)
             {
                 printf("error in reading data\n");
@@ -555,6 +555,7 @@ int main(int argc, char *argv[])
         // write output to file
         if (WRITE_OUTPUT)
         {
+            //status = clWaitForEvents(1, &readDone);
             if (EXTRA_TIMING)
             {
                 tWriteFileStart = get_timestamp();
@@ -563,7 +564,19 @@ int main(int argc, char *argv[])
             {
                 for (k = 0; k < IO_NETWORK_DIM2; k++)
                 {
-                    writeOutputDouble(temp, cellStatePtr[((((i % 2) ^ 1) * IO_NETWORK_SIZE + (j + k * IO_NETWORK_DIM1)) * STATE_SIZE) + AXON_V], pOutFile);
+                    // DEBUG
+                    /* if (i < 10)
+                    {
+                        int u;
+                        for (u = 0; u < STATE_SIZE; u++)
+                        {
+                            printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + u]);
+                        }
+                        printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V]);
+                        printf("\n");
+                    } */ 
+
+                    writeOutputDouble(temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V], pOutFile);
                 }
             }
 

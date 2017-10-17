@@ -18,50 +18,55 @@ void CompDend(global mod_prec *cellCompParamsPtr, StepData step)
     mod_prec vDend;
     mod_prec prevComp1;
     mod_prec prevComp2;
+    CompRet retVals;
+    mod_prec Ic;
+    mod_prec vSoma;
+    mod_prec q;
+    mod_prec r;
+    mod_prec s;
 
     //printf("Dendrite ");
 
-    //Prepare pointers to inputs/outputs
+    // DendHCurr
     vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V];
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_H];
-    //Compute
     cellCompParamsPtr[step.newCellIdx + DEND_H] = DendHCurr(vDend, prevComp1);
 
-    //Prepare pointers to inputs/outputs
+    // DendCaCurr
     //vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V];
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_CAL];
-    //Compute
     cellCompParamsPtr[step.newCellIdx + DEND_CAL] = DendCaCurr(vDend, prevComp1);
 
-    //Prepare pointers to inputs/outputs
+    // DendKCurr
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_P];
     prevComp2 = cellCompParamsPtr[step.prevCellIdx + DEND_CA2];
-    //Compute
     cellCompParamsPtr[step.newCellIdx + DEND_P] = DendKCurr(prevComp1, prevComp2);
 
-    //Prepare pointers to inputs/outputs
+    // DendCal 
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_CA2];
     prevComp2 = cellCompParamsPtr[step.prevCellIdx + DEND_I];
-    //Compute
-    cellCompParamsPtr[step.newCellIdx + DEND_P] = DendCal(prevComp1, prevComp2);
+    cellCompParamsPtr[step.newCellIdx + DEND_CA2] = DendCal(prevComp1, prevComp2);
 
-    //Prepare pointers to inputs/outputs
-    mod_prec Ic = IcNeighbors(cellCompParamsPtr, vDend, step);
+    // DendCurrVol
+    Ic = IcNeighbors(cellCompParamsPtr, vDend, step);
     //vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V];
-    mod_prec vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
-    mod_prec q = cellCompParamsPtr[step.newCellIdx + DEND_H];
-    mod_prec r = cellCompParamsPtr[step.newCellIdx + DEND_CAL];
-    mod_prec s = cellCompParamsPtr[step.newCellIdx + DEND_P];
-    //Compute
-    CompRet dendCurrRet = DendCurrVolt(Ic,
-                                       step.iApp,
-                                       vDend,
-                                       vSoma,
-                                       q,
-                                       r,
-                                       s);
-    cellCompParamsPtr[step.newCellIdx + DEND_V] = dendCurrRet.ret1;
-    cellCompParamsPtr[step.newCellIdx + DEND_I] = dendCurrRet.ret2;
+    vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
+    q = cellCompParamsPtr[step.newCellIdx + DEND_H];
+    r = cellCompParamsPtr[step.newCellIdx + DEND_CAL];
+    s = cellCompParamsPtr[step.newCellIdx + DEND_P];
+    retVals = DendCurrVolt(Ic,
+                           step.iApp,
+                           vDend,
+                           vSoma,
+                           q,
+                           r,
+                           s);
+    cellCompParamsPtr[step.newCellIdx + DEND_V] = retVals.ret1;
+    cellCompParamsPtr[step.newCellIdx + DEND_I] = retVals.ret2;
+
+    // DEBUG
+    printf("%f\n", cellCompParamsPtr[step.newCellIdx + DEND_V]);
+    printf("%f\n\n", cellCompParamsPtr[step.newCellIdx + DEND_I]);
 
     return;
 }
@@ -274,6 +279,9 @@ void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
                                                                n,
                                                                x_s);
 
+    // DEBUG
+    //printf("%f\n", cellCompParamsPtr[step.newCellIdx + SOMA_V]);
+
     return;
 }
 
@@ -451,6 +459,9 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     h_a = cellCompParamsPtr[step.newCellIdx + AXON_SH];   //&cellCompParamsPtr->newCellState->axon.Sodium_h_a;
     x_a = cellCompParamsPtr[step.newCellIdx + AXON_P];    //&cellCompParamsPtr->newCellState->axon.Potassium_x_a;
     cellCompParamsPtr[step.newCellIdx + AXON_V] = AxonCurrVolt(vSoma, vAxon, m_a, h_a, x_a);
+    
+    // DEBUG
+    //printf("%f\n", cellCompParamsPtr[step.newCellIdx + AXON_V]);
 
     return;
 }
@@ -555,6 +566,16 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
         // Next cell state
         cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx];
     }
+    // DEBUG
+    /* int u;
+    if (i < 10)
+    {
+        for (u = 0; u < PARAM_SIZE; u++)
+        {
+            printf("%d, %f\n", i, cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + u]);
+        }
+        printf("\n");
+    } */
     // Previous cell state in indices 0-27
     // Next cell state in indices 28-54
 
@@ -567,4 +588,22 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     step.newCellIdx = step.prevCellIdx + PARAM_SIZE;
 
     ComputeOneCell(cellCompParamsPtr, step);
+
+    // Copy data back
+    for (int idx = 0; idx < STATE_SIZE; idx++)
+    {
+        cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx];
+    }
+
+    // DEBUG
+    /* if (i < 10)
+    {
+        int u;
+        //for (u = 0; u < STATE_SIZE; u++)
+        //{
+        //    printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + u]);
+        //}
+        printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + AXON_V]);
+        printf("\n");
+    } */ 
 }
