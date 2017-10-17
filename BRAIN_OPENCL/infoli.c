@@ -299,11 +299,21 @@ int main(int argc, char *argv[])
     // read kernel sources into buffers
     char *neighbourBuffer, *computeBuffer;
     neighbourBuffer = (char *)malloc(neighbourSize + 1);
+    if (neighbourBuffer == NULL)
+    {
+        printf("NeighbourBuffer malloc failed\n");
+        exit(-1);
+    }
     neighbourBuffer[neighbourSize] = '\0';
     fread(neighbourBuffer, sizeof(char), neighbourSize, neighbourFile);
     fclose(neighbourFile);
 
     computeBuffer = (char *)malloc(computeSize + 1);
+    if (computeBuffer == NULL)
+    {
+        printf("NeighbourBuffer malloc failed\n");
+        exit(-1);
+    }
     computeBuffer[computeSize] = '\0';
     fread(computeBuffer, sizeof(char), computeSize, computeFile);
     fclose(computeFile);
@@ -522,6 +532,8 @@ int main(int argc, char *argv[])
             //-----------------------------------------------------
             // STEP 11.3: Read output data from device
             //-----------------------------------------------------
+
+            // TODO read only half of buffer instead of whole thing
             clEnqueueReadBuffer(
                 cmdQueue,
                 bufferCellState,
@@ -531,7 +543,7 @@ int main(int argc, char *argv[])
                 cellStatePtr,
                 1,
                 &computeDone,
-                &readDone);
+                NULL);
             if (status != CL_SUCCESS)
             {
                 printf("error in reading data\n");
@@ -558,16 +570,16 @@ int main(int argc, char *argv[])
                 for (k = 0; k < IO_NETWORK_DIM2; k++)
                 {
                     // DEBUG
-                    /* if (i < 10)
+                    /* if (i == 0)
                     {
-                        int u;
-                        for (u = 0; u < STATE_SIZE; u++)
+                         int u;
+                         for (u = 0; u < STATE_SIZE; u++)
                         {
                             printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + u]);
-                        }
-                        printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V]);
-                        printf("\n");
-                    } */ 
+                        }  
+                        //printf("main %d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V]);
+                        //printf("\n");
+                    } */
 
                     writeOutputDouble(temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V], pOutFile);
                 }

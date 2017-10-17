@@ -461,7 +461,10 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     cellCompParamsPtr[step.newCellIdx + AXON_V] = AxonCurrVolt(vSoma, vAxon, m_a, h_a, x_a);
     
     // DEBUG
-    //printf("%f\n", cellCompParamsPtr[step.newCellIdx + AXON_V]);
+    /* if (step.i == 1)
+    {
+        printf("%f\n", cellCompParamsPtr[step.newCellIdx + AXON_V]);
+    } */
 
     return;
 }
@@ -577,11 +580,12 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
         printf("\n");
     } */
     // Previous cell state in indices 0-27
-    // Next cell state in indices 28-54
+    // Next cell state in indices 28-53
 
     //Step data that needs to go with the ptr to access correct indices
     StepData step;
     step.iApp = iApp;
+    step.i = i;
     step.x = x;
     step.y = y;
     step.prevCellIdx = (y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE;
@@ -596,14 +600,14 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     }
 
     // DEBUG
-    /* if (i < 10)
+    /* if (i == 0)
     {
-        int u;
-        //for (u = 0; u < STATE_SIZE; u++)
-        //{
-        //    printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + u]);
-        //}
-        printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + AXON_V]);
-        printf("\n");
-    } */ 
+         int u;
+        for (u = 0; u < STATE_SIZE; u++)
+        {
+            printf("x=%d, y=%d, u=%d, %f\n", x, y, u, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + u]);
+        } 
+        //printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + AXON_V]);
+        //printf("\n");
+    } */
 }

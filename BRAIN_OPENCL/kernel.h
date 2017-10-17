@@ -7,6 +7,7 @@ typedef double mod_prec;
 typedef struct StepData
 {
     mod_prec iApp; // External input of the dendrite
+    int i;
     int x;         // current position in dimension 1 of the IO network
     int y;         // current position in dimension 2 of the IO network
     int prevCellIdx;

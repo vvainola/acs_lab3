@@ -29,8 +29,9 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
         }
     }
 
+
     // DEBUG
-    /* if (i < 3)
+    /* if (i == 0)
     {
         printf("neighbour\n");
         int u;
