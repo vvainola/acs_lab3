@@ -65,9 +65,9 @@ void CompDend(global mod_prec *cellCompParamsPtr, StepData step)
     cellCompParamsPtr[step.newCellIdx + DEND_I] = retVals.ret2;
 
     // DEBUG
-    printf("%f\n", cellCompParamsPtr[step.newCellIdx + DEND_V]);
-    printf("%f\n\n", cellCompParamsPtr[step.newCellIdx + DEND_I]);
-
+    /* printf("%f\n", cellCompParamsPtr[step.newCellIdx + DEND_V]);
+    printf("%f\n\n", cellCompParamsPtr[step.newCellIdx + DEND_I]); */
+   
     return;
 }
 

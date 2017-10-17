@@ -193,14 +193,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 5: Create device buffers
     //-----------------------------------------------------
-    cl_mem bufferiApp, bufferCellState, bufferCellCompParams;
-
-    bufferiApp = clCreateBuffer(
-        context,
-        CL_MEM_READ_WRITE,
-        simSteps * sizeof(cl_double),
-        NULL,
-        &status);
+    cl_mem bufferCellState, bufferCellCompParams;
 
     if (status != CL_SUCCESS)
     {
@@ -211,7 +204,7 @@ int main(int argc, char *argv[])
     bufferCellState = clCreateBuffer(
         context,
         CL_MEM_READ_WRITE,
-        2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * STATE_SIZE * sizeof(cl_double),
+        2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * STATE_SIZE * sizeof(cl_mod_prec),
         NULL,
         &status);
 
@@ -224,7 +217,7 @@ int main(int argc, char *argv[])
     bufferCellCompParams = clCreateBuffer(
         context,
         CL_MEM_READ_WRITE,
-        IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_double),
+        IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_mod_prec),
         NULL,
         &status);
 
