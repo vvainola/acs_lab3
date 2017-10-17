@@ -19,12 +19,12 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
         for (q = y - 1; q <= y + 1; q++)
         {
             if(((p!=x)||(q!=y)) && ((p>=0)&&(q>=0)) && ((p<IO_NETWORK_DIM1)&&(q<IO_NETWORK_DIM2))){
-                cellCompParamsPtr[(y*IO_NETWORK_DIM1 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + n++] = cellStatePtr[(i%2)*IO_NETWORK_SIZE*STATE_SIZE + (q*IO_NETWORK_DIM1 + p)*STATE_SIZE + DEND_V];
+                cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + n++] = cellStatePtr[(i%2)*IO_NETWORK_SIZE*STATE_SIZE + (q*IO_NETWORK_DIM2 + p)*STATE_SIZE + DEND_V];
             }else if(p==x && q==y){
                 ;   // do nothing, this is the cell itself
             }else{
                 //store same V_dend so that Ic becomes zero by the subtraction
-                cellCompParamsPtr[(y*IO_NETWORK_DIM1 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + n++] = cellStatePtr[(i%2)*IO_NETWORK_SIZE*STATE_SIZE + (y*IO_NETWORK_DIM1 + x)*STATE_SIZE + DEND_V];
+                cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + n++] = cellStatePtr[(i%2)*IO_NETWORK_SIZE*STATE_SIZE + (y*IO_NETWORK_DIM2 + x)*STATE_SIZE + DEND_V];
             }
         }
     }
@@ -37,7 +37,7 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
         int u;
         for (u = 0; u < 8; u++)
         {
-            printf("%f\n", cellCompParamsPtr[(y*IO_NETWORK_DIM1 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + u]);
+            printf("%f\n", cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + u]);
         }
     }  */
 

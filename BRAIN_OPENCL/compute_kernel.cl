@@ -159,15 +159,6 @@ CompRet DendCurrVolt(mod_prec I_c,
     //Local variables
     mod_prec I_sd, I_CaH, I_K_Ca, I_ld, I_h, dVd_dt;
 
-    //Get inputs
-    /* mod_prec I_c = chComps_iC;            //chComps->iC;
-    mod_prec I_app = *chComps_iApp;       //*chComps->iApp;
-    mod_prec prevV_dend = *chComps_vDend; //*chComps->vDend;
-    mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
-    mod_prec q = *chComps_q;              //*chComps->q;
-    mod_prec r = *chComps_r;              //*chComps->r;
-    mod_prec s = *chComps_s;              //*chComps->s; */
-
     // DENDRITIC CURRENTS
 
     // Soma-dendrite interaction current I_sd
@@ -393,18 +384,6 @@ mod_prec SomaCurrVolt(mod_prec g_CaL,
     //Local variables
     mod_prec I_ds, I_CaL, I_Na_s, I_ls, I_Kdr_s, I_K_s, I_as, dVs_dt;
 
-    //Get inputs
-    /* mod_prec g_CaL = *chComps_g_CaL;      //*chComps->g_CaL;
-    mod_prec prevV_dend = *chComps_vDend; //*chComps->vDend;
-    mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
-    mod_prec prevV_axon = *chComps_vAxon; //*chComps->vAxon;
-    mod_prec k = *chComps_k;              //*chComps->k;
-    mod_prec l = *chComps_l;              //*chComps->l;
-    mod_prec m = *chComps_m;              //*chComps->m;
-    mod_prec h = *chComps_h;              //*chComps->h;
-    mod_prec n = *chComps_n;              //*chComps->n;
-    mod_prec x_s = *chComps_x_s;          //*chComps->x_s; */
-
     // SOMATIC CURRENTS
 
     // Dendrite-soma interaction current I_ds
@@ -524,13 +503,6 @@ mod_prec AxonCurrVolt(mod_prec prevV_soma,
     //Local variable
     mod_prec I_Na_a, I_la, I_sa, I_K_a, dVa_dt;
 
-    //Get inputs
-    /* mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
-    mod_prec prevV_axon = *chComps_vAxon; //*chComps->vAxon;
-    mod_prec m_a = *chComps_m_a;          //*chComps->m_a;
-    mod_prec h_a = *chComps_h_a;          //*chComps->h_a;
-    mod_prec x_a = *chComps_x_a;          //*chComps->x_a; */
-
     // AXONAL CURRENTS
     // Sodium
     I_Na_a = G_NA_A * m_a * m_a * m_a * h_a * (prevV_axon - V_NA);
@@ -558,8 +530,8 @@ Then Compute the new variables of the current cell with ComputeOneCell.
 **/
 __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cellCompParamsPtr, mod_prec iApp, uint i)
 {
-    int x = get_global_id(0);
-    int y = get_global_id(1);
+    int y = get_global_id(0);
+    int x = get_global_id(1);
 
     // TODO smarter way of copying data? memcpy not supported in opencl
     for (int idx = 0; idx < STATE_SIZE; idx++)
@@ -569,16 +541,6 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
         // Next cell state
         cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx];
     }
-    // DEBUG
-    /* int u;
-    if (i < 10)
-    {
-        for (u = 0; u < PARAM_SIZE; u++)
-        {
-            printf("%d, %f\n", i, cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + u]);
-        }
-        printf("\n");
-    } */
     // Previous cell state in indices 0-27
     // Next cell state in indices 28-53
 
@@ -588,7 +550,7 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     step.i = i;
     step.x = x;
     step.y = y;
-    step.prevCellIdx = (y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE;
+    step.prevCellIdx = (y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE;
     step.newCellIdx = step.prevCellIdx + PARAM_SIZE;
 
     ComputeOneCell(cellCompParamsPtr, step);
@@ -598,16 +560,6 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     {
         cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx];
     }
-
-    // DEBUG
-    /* if (i == 0)
-    {
-         int u;
-        for (u = 0; u < STATE_SIZE; u++)
-        {
-            printf("x=%d, y=%d, u=%d, %f\n", x, y, u, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + u]);
-        } 
-        //printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + AXON_V]);
-        //printf("\n");
-    } */
 }
+
+
