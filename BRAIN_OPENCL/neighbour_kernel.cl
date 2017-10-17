@@ -14,12 +14,12 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
     n = 0;
     int y = get_global_id(0);
     int x = get_global_id(1);
-    for (p = x - 1; p <= x + 1; p++)
+    for (p = y - 1; p <= y + 1; p++)
     {
-        for (q = y - 1; q <= y + 1; q++)
+        for (q = x - 1; q <= x + 1; q++)
         {
             if(((p!=x)||(q!=y)) && ((p>=0)&&(q>=0)) && ((p<IO_NETWORK_DIM1)&&(q<IO_NETWORK_DIM2))){
-                cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + n++] = cellStatePtr[(i%2)*IO_NETWORK_SIZE*STATE_SIZE + (q*IO_NETWORK_DIM2 + p)*STATE_SIZE + DEND_V];
+                cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + n++] = cellStatePtr[(i%2)*IO_NETWORK_SIZE*STATE_SIZE + (p*IO_NETWORK_DIM2 + q)*STATE_SIZE + DEND_V];
             }else if(p==x && q==y){
                 ;   // do nothing, this is the cell itself
             }else{
@@ -37,8 +37,8 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
         int u;
         for (u = 0; u < 8; u++)
         {
-            printf("%f\n", cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + u]);
+            printf("neighbour %f\n", cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + u]);
         }
-    }  */
+    } */
 
 }

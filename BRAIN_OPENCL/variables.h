@@ -1,9 +1,9 @@
 /*** MACROS ***/
 #define RAND_INIT 0 // make it zero to facilitate debugging
-#define SIMTIME 1000 // in ms, for when no input file is provided
+#define SIMTIME 10 // in ms, for when no input file is provided
 //IO network size is IO_NETWORK_DIM1*IO_NETWORK_DIM2
-#define IO_NETWORK_DIM1 32
-#define IO_NETWORK_DIM2 32
+#define IO_NETWORK_DIM1 16
+#define IO_NETWORK_DIM2 16  
 #define IO_NETWORK_SIZE IO_NETWORK_DIM1*IO_NETWORK_DIM2
 
 #define IAPP_MAX_CHARS 6 //2 integer, the dot, 2 decimals and the delimiter

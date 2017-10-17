@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
     bufferCellState = clCreateBuffer(
         context,
         CL_MEM_READ_WRITE,
-        2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * STATE_SIZE * sizeof(cl_mod_prec),
+        2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
         NULL,
         &status);
 
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
         bufferCellState,
         CL_FALSE,
         0,
-        2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * STATE_SIZE * sizeof(cl_double),
+        IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
         cellStatePtr,
         0,
         NULL,
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
         bufferCellCompParams,
         CL_FALSE,
         0,
-        IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_double),
+        IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_mod_prec),
         cellCompParamsPtr,
         0,
         NULL,
@@ -420,8 +420,14 @@ int main(int argc, char *argv[])
     globalWorkSize[1] = IO_NETWORK_DIM2;
 
     //Not used yet
-    //size_t localWorkSize[1];
+    //size_t localWorkSize[2];
     //localWorkSize[0] = 1;
+    //localWorkSize[1] = 1;
+
+    if (EXTRA_TIMING)
+    {
+        tLoopStart = get_timestamp();
+    }
 
     for (i = 0; i < simSteps; i++)
     {
@@ -442,6 +448,7 @@ int main(int argc, char *argv[])
             2,
             sizeof(cl_uint),
             &i);
+
         status |= clSetKernelArg(
             computeKernel,
             2,
@@ -496,6 +503,15 @@ int main(int argc, char *argv[])
         //-----------------------------------------------------
         // STEP 11.2: Run compute kernel
         //-----------------------------------------------------
+        if (i == 0)
+        {
+            int idx;
+            for (idx = 0; idx < IO_NETWORK_SIZE*STATE_SIZE; idx+=STATE_SIZE)
+            {
+                printf("main %d      %f\n", idx, cellStatePtr[idx]);
+            }
+        }
+
         status = clEnqueueNDRangeKernel(
             cmdQueue,
             computeKernel,
@@ -534,6 +550,7 @@ int main(int argc, char *argv[])
             //-----------------------------------------------------
 
             // TODO read only half of buffer instead of whole thing
+            status = clWaitForEvents(1, &computeDone);
             clEnqueueReadBuffer(
                 cmdQueue,
                 bufferCellState,
@@ -570,18 +587,17 @@ int main(int argc, char *argv[])
                 for (k = 0; k < IO_NETWORK_DIM2; k++)
                 {
                     // DEBUG
-                    /* if (i == 0)
+                    if (i == 0)
                     {
-                         int u;
+                         /*  int u;
                          for (u = 0; u < STATE_SIZE; u++)
                         {
                             printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + u]);
-                        }  
-                        //printf("main %d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V]);
-                        //printf("\n");
-                    } */
+                        }  */  
+                        printf("main k=%d j=%d net=%d j*net=%d j*net+k=%d swp=%d tot=%d    %f\n", k, j, IO_NETWORK_DIM2, j*IO_NETWORK_DIM2, j*IO_NETWORK_DIM2+k,  ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (j * IO_NETWORK_DIM2 + k) * STATE_SIZE + AXON_V, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (j * IO_NETWORK_DIM2 + k) * STATE_SIZE + AXON_V]);
+                    }  
 
-                    writeOutputDouble(temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V], pOutFile);
+                    writeOutputDouble(temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (j * IO_NETWORK_DIM1 + k) * STATE_SIZE + AXON_V], pOutFile);
                 }
             }
 
@@ -599,6 +615,11 @@ int main(int argc, char *argv[])
     }
 
     t1 = get_timestamp();
+    if (EXTRA_TIMING)
+    {
+        tInitEnd = get_timestamp();
+    }
+    
     usecs = (t1 - t0); // / 1000000;
     DEBUG_PRINT(("%d ms of brain time in %d simulation steps\n", simTime, simSteps));
     DEBUG_PRINT((" %lld usecs real time \n", usecs));
