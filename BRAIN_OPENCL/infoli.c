@@ -19,6 +19,9 @@
  * state and runs the model calculations.
  *
  */
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
+#define max(a,b)            (((a) > (b)) ? (a) : (b))
+
 #include "infoli.h"
 #include "init.h"
 #include "ioFile.h"
@@ -415,13 +418,22 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 10: Configure the work-item structure
     //-----------------------------------------------------
+    
     size_t globalWorkSize[2];
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
 
-    //Not used yet
-    //size_t localWorkSize[1];
-    //localWorkSize[0] = 1;
+    size_t local_work_size = min(8, IO_NETWORK_DIM1);
+    size_t localWorkSize[] = {local_work_size, local_work_size};
+
+    if (EXTRA_TIMING)
+    {
+        tInitEnd = get_timestamp();
+    }
+    if (EXTRA_TIMING)
+    {
+        tLoopStart = get_timestamp();
+    }
 
     for (i = 0; i < simSteps; i++)
     {
@@ -475,7 +487,7 @@ int main(int argc, char *argv[])
             2,
             NULL,
             globalWorkSize,
-            NULL,
+            localWorkSize,
             1,
             &writeDone, // Wait for initial write
             &neighbourDone);
@@ -502,7 +514,7 @@ int main(int argc, char *argv[])
             2,
             NULL,
             globalWorkSize,
-            NULL,
+            localWorkSize,
             1,
             &neighbourDone, // Wait for neighbour done
             &computeDone);
