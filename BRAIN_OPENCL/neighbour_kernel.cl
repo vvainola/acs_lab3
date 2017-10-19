@@ -4,7 +4,7 @@
 Input: cellCompParamsPtr, cellStatePtr, i
 cellCompParamsPtr: Array of struct which stores values of neighbours for each cell.
 cellStatePtr: Array with values for each cell.
-i: current simulation step
+i: current simulation step 
 
 
 Retreive the voltage of the dendrite (V_dend) from each neighbour
@@ -14,6 +14,15 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
     n = 0;
     int y = get_global_id(0);
     int x = get_global_id(1);
+
+    /* if (x == 0 && y == 0)
+    {
+        for (int t = STATE_SIZE; t < PARAM_SIZE; t++)
+        {
+            printf("neighbour start i=%d x=%d y=%d t=%d %f\n", i, x, y, t, cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + t]);
+        }
+    } */
+
     for (p = x - 1; p <= x + 1; p++)
     {
         for (q = y - 1; q <= y + 1; q++)
@@ -29,16 +38,11 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
         }
     }
 
-
-    // DEBUG
-    /* if (i == 0)
+    /* if (x == 0 && y == 0)
     {
-        printf("neighbour\n");
-        int u;
-        for (u = 0; u < 8; u++)
+        for (int t = STATE_SIZE; t < PARAM_SIZE; t++)
         {
-            printf("%f\n", cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + u]);
+            printf("neighbour end i=%d x=%d y=%d t=%d %f\n", i, x, y, t, cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + t]);
         }
-    }  */
-
+    } */
 }

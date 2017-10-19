@@ -1,6 +1,6 @@
 #include "kernel.h"
 
-//#include <math.h>
+//#include <math.h> 
 void ComputeOneCell(global mod_prec *cellCompParamsPtr, StepData step)
 {
 
@@ -15,7 +15,7 @@ void CompDend(global mod_prec *cellCompParamsPtr, StepData step)
 {
 
     //define variables
-    mod_prec vDend;
+    mod_prec vDend; 
     mod_prec prevComp1;
     mod_prec prevComp2;
     CompRet retVals;
@@ -425,11 +425,19 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     retVals = AxonSodium(vAxon, prevComp1);
     cellCompParamsPtr[step.newCellIdx + AXON_SH] = retVals.ret1;
     cellCompParamsPtr[step.newCellIdx + AXON_SM] = retVals.ret2;
+    /* if(step.x==0 && step.y==0)
+    {
+        printf("sodium %d %f %f \n", step.i, retVals.ret1, retVals.ret2);
+    } */
 
     // AxonPotassium
     // vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V];
     prevComp1 = cellCompParamsPtr[step.prevCellIdx + AXON_P];
     cellCompParamsPtr[step.newCellIdx + AXON_P] = AxonPotassium(vAxon, prevComp1);
+    /* if(step.x==0 && step.y==0)
+    {
+        printf("potassium %d %f \n", step.i, cellCompParamsPtr[step.newCellIdx + AXON_P]);
+    } */
 
     // AxonCurrVolt();
     vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V]; //&cellCompParamsPtr->prevCellState->soma.V_soma;
@@ -438,6 +446,10 @@ void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
     h_a = cellCompParamsPtr[step.newCellIdx + AXON_SH];   //&cellCompParamsPtr->newCellState->axon.Sodium_h_a;
     x_a = cellCompParamsPtr[step.newCellIdx + AXON_P];    //&cellCompParamsPtr->newCellState->axon.Potassium_x_a;
     cellCompParamsPtr[step.newCellIdx + AXON_V] = AxonCurrVolt(vSoma, vAxon, m_a, h_a, x_a);
+    /* if(step.x==0 && step.y==0)
+    {
+        printf("currvolt %d %f \n", step.i, cellCompParamsPtr[step.newCellIdx + AXON_V]);
+    } */
     
     // DEBUG
     /* if (step.i == 1)
@@ -537,9 +549,9 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     for (int idx = 0; idx < STATE_SIZE; idx++)
     {
         // Previous cell state
-        cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + idx] = cellStatePtr[(i % 2) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx];
+        cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + idx] = cellStatePtr[(i % 2) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx];
         // Next cell state
-        cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx];
+        cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx];
     }
     // Previous cell state in indices 0-27
     // Next cell state in indices 28-53
@@ -553,13 +565,29 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     step.prevCellIdx = (y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE;
     step.newCellIdx = step.prevCellIdx + PARAM_SIZE;
 
+    /* if (x == 0 && y == 0 && i < 5)
+    {
+        for (int t = 0; t < LOCAL_PARAM_SIZE; t++)
+        {
+            printf("kernel start i=%d x=%d y=%d t=%d %f\n", i, x, y, t, cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + t]);
+        }
+    } */
+
     ComputeOneCell(cellCompParamsPtr, step);
 
     // Copy data back
     for (int idx = 0; idx < STATE_SIZE; idx++)
     {
-        cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx];
+        cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx];
     }
+
+    /* if (x == 0 && y == 0 && i < 5)
+    {
+        for (int t = 0; t < LOCAL_PARAM_SIZE; t++)
+        {
+            printf("kernel end i=%d x=%d y=%d t=%d %f\n", i, x, y, t, cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + t]);
+        }
+    } */
 }
 
 
