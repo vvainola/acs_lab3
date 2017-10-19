@@ -66,10 +66,6 @@ void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp, StepData step)
     chComps_newI_CaH = &(cellCompParamsPtr[PARAM_SIZE + DEND_I]); //&cellCompParamsPtr->newCellState->dend.I_CaH;
     DendCurrVolt(chComps_iC, iApp, chComps_vDend, chComps_newVDend, chComps_vSoma, chComps_q, chComps_r, chComps_s, chComps_newI_CaH);
 
-    if (step.i == 3)
-    {
-        printf("chComps_ic, i=%d x=%d y=%d %f\n", step.i, step.x, step.y, chComps_iC);
-    }
     return;
 }
 
@@ -204,7 +200,6 @@ mod_prec IcNeighbors(private mod_prec *cellCompParamsPtr, mod_prec prevV_dend)
     {
         //printf("%d prevdend: %0.10lf, neighVdend: %0.10lf\n",i, prevV_dend, *neighVdend );
         V = prevV_dend - cellCompParamsPtr[STATE_SIZE + i];
-        //printf("%f\n", cellCompParamsPtr[STATE_SIZE + i]);
         f = 0.8 * exp(-1 * pow(V, 2) / 100) + 0.2; // SCHWEIGHOFER 2004 VERSION
         I_c = I_c + (CONDUCTANCE * f * V);
     }
@@ -561,14 +556,6 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cel
     {
         cellCompParamsPtrPrivate[idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + idx];
     }
-
-    /* if (i == 0)
-    {
-        for (int idx = STATE_SIZE; idx < PARAM_SIZE; idx++)
-        {
-            printf("x=%d y=%d i=%d idx=%d %f\n", x, y, i, idx, cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * private_PARAM_SIZE + idx]);
-        }
-    } */
 
     StepData step;
     step.i = i;
