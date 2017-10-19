@@ -1,0 +1,45 @@
+global 
+Inferior Olive Model (32 x 32 cell mesh)
+cellStatePtr: 311296B
+cellCompParamsPtr: 442368B
+1000 ms of brain time in 20000 simulation steps
+ 19110832 usecs real time
+----------------------------------
+tInit:           4450802
+tLoop:           15845475
+        tNeighbour:      686425
+        tCompute:        2954100
+        tRead:           1452191
+        tWriteFile:      10722372
+        ----------- +
+        tSumLoop:        15815088
+----------------------------------
+tSum:    20296277
+
+----------------------------------
+tInit:           3319861
+tLoop:           15790971
+        tNeighbour:      681905
+        tCompute:        2949186
+        tRead:           1439801
+        tWriteFile:      10692796
+        ----------- +
+        tSumLoop:        15763688
+----------------------------------
+tSum:    19110832             
+
+----------------------------------
+tInit:           4064023
+tLoop:           16079435
+        tNeighbour:      755971
+        tCompute:        2997840
+        tRead:           1515655
+        tWriteFile:      10780906
+        ----------- +
+        tSumLoop:        16050372
+----------------------------------
+tSum:    20143458
+
+local
+               
+

@@ -1,103 +1,106 @@
 #include "kernel.h"
-
 //#include <math.h>
-void ComputeOneCell(global mod_prec *cellCompParamsPtr, StepData step)
-{
 
+
+void ComputeOneCell(private mod_prec *cellCompParamsPtr, mod_prec iApp, StepData step)
+{
     //The three compartments can be computed concurrently but only across a single sim step
-    CompDend(cellCompParamsPtr, step);
+    CompDend(cellCompParamsPtr, iApp, step);
     CompSoma(cellCompParamsPtr, step);
     CompAxon(cellCompParamsPtr, step);
     return;
 }
 
-void CompDend(global mod_prec *cellCompParamsPtr, StepData step)
+void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp, StepData step)
 {
-
-    //define variables
-    mod_prec vDend;
-    mod_prec prevComp1;
-    mod_prec prevComp2;
-    CompRet retVals;
-    mod_prec Ic;
-    mod_prec vSoma;
-    mod_prec q;
-    mod_prec r;
-    mod_prec s;
+    private mod_prec *chPrms_v;
+    private mod_prec *chPrms_prevComp1, *chPrms_prevComp2;
+    private mod_prec *chPrms_newComp1; // *chPrms_newComp2;
+    private mod_prec *chComps_iApp;
+    mod_prec chComps_iC;
+    private mod_prec *chComps_vDend;
+    private mod_prec *chComps_vSoma;
+    private mod_prec *chComps_q, *chComps_r, *chComps_s;
+    private mod_prec *chComps_newVDend;
+    private mod_prec *chComps_newI_CaH;
 
     //printf("Dendrite ");
 
-    // DendHCurr
-    vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_H];
-    cellCompParamsPtr[step.newCellIdx + DEND_H] = DendHCurr(vDend, prevComp1);
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[DEND_V]);                     //&cellCompParamsPtr->prevCellState->dend.V_dend;
+    chPrms_prevComp1 = &(cellCompParamsPtr[DEND_H]);             //&cellCompParamsPtr->prevCellState->dend.Hcurrent_q;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + DEND_H]); //&cellCompParamsPtr->newCellState->dend.Hcurrent_q;
+    //Compute
+    DendHCurr(chPrms_v, chPrms_prevComp1, chPrms_newComp1);
 
-    // DendCaCurr
-    //vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_CAL];
-    cellCompParamsPtr[step.newCellIdx + DEND_CAL] = DendCaCurr(vDend, prevComp1);
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[DEND_V]);                       //&cellCompParamsPtr->prevCellState->dend.V_dend;
+    chPrms_prevComp1 = &(cellCompParamsPtr[DEND_CAL]);             //&cellCompParamsPtr->prevCellState->dend.Calcium_r;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + DEND_CAL]); //&cellCompParamsPtr->newCellState->dend.Calcium_r;
+    //Compute
+    DendCaCurr(chPrms_v, chPrms_prevComp1, chPrms_newComp1);
 
-    // DendKCurr
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_P];
-    prevComp2 = cellCompParamsPtr[step.prevCellIdx + DEND_CA2];
-    cellCompParamsPtr[step.newCellIdx + DEND_P] = DendKCurr(prevComp1, prevComp2);
+    //Prepare pointers to inputs/outputs
+    chPrms_prevComp1 = &(cellCompParamsPtr[DEND_P]);             //&cellCompParamsPtr->prevCellState->dend.Potassium_s;
+    chPrms_prevComp2 = &(cellCompParamsPtr[DEND_CA2]);           //&cellCompParamsPtr->prevCellState->dend.Ca2Plus;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + DEND_P]); //&cellCompParamsPtr->newCellState->dend.Potassium_s;
+    //Compute
+    DendKCurr(chPrms_prevComp1, chPrms_prevComp2, chPrms_newComp1);
 
-    // DendCal 
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + DEND_CA2];
-    prevComp2 = cellCompParamsPtr[step.prevCellIdx + DEND_I];
-    cellCompParamsPtr[step.newCellIdx + DEND_CA2] = DendCal(prevComp1, prevComp2);
+    //Prepare pointers to inputs/outputs
+    chPrms_prevComp1 = &(cellCompParamsPtr[DEND_CA2]);             //&cellCompParamsPtr->prevCellState->dend.Ca2Plus;
+    chPrms_prevComp2 = &(cellCompParamsPtr[DEND_I]);               //&cellCompParamsPtr->prevCellState->dend.I_CaH;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + DEND_CA2]); //&cellCompParamsPtr->newCellState->dend.Ca2Plus;
+    //Compute
+    DendCal(chPrms_prevComp1, chPrms_prevComp2, chPrms_newComp1);
 
-    // DendCurrVol
-    Ic = IcNeighbors(cellCompParamsPtr, vDend, step);
-    //vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V];
-    vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
-    q = cellCompParamsPtr[step.newCellIdx + DEND_H];
-    r = cellCompParamsPtr[step.newCellIdx + DEND_CAL];
-    s = cellCompParamsPtr[step.newCellIdx + DEND_P];
-    retVals = DendCurrVolt(Ic,
-                           step.iApp,
-                           vDend,
-                           vSoma,
-                           q,
-                           r,
-                           s);
-    cellCompParamsPtr[step.newCellIdx + DEND_V] = retVals.ret1;
-    cellCompParamsPtr[step.newCellIdx + DEND_I] = retVals.ret2;
+    chComps_iC = IcNeighbors(cellCompParamsPtr, cellCompParamsPtr[DEND_V]);
+    //IcNeighbors(cellCompParamsPtr->neighVdend, cellCompParamsPtr->prevCellState->dend.V_dend);
+    //chComps_iApp = &iApp;                                       //&cellCompParamsPtr->iAppIn;
+    chComps_vDend = &(cellCompParamsPtr[DEND_V]);                 //&cellCompParamsPtr->prevCellState->dend.V_dend;
+    chComps_newVDend = &(cellCompParamsPtr[PARAM_SIZE + DEND_V]); //&cellCompParamsPtr->newCellState->dend.V_dend;
+    chComps_vSoma = &(cellCompParamsPtr[SOMA_V]);                 //&cellCompParamsPtr->prevCellState->soma.V_soma
+    chComps_q = &(cellCompParamsPtr[PARAM_SIZE + DEND_H]);        //&cellCompParamsPtr->newCellState->dend.Hcurrent_q;
+    chComps_r = &(cellCompParamsPtr[PARAM_SIZE + DEND_CAL]);      //&cellCompParamsPtr->newCellState->dend.Calcium_r;
+    chComps_s = &(cellCompParamsPtr[PARAM_SIZE + DEND_P]);        //&cellCompParamsPtr->newCellState->dend.Potassium_s;
+    chComps_newI_CaH = &(cellCompParamsPtr[PARAM_SIZE + DEND_I]); //&cellCompParamsPtr->newCellState->dend.I_CaH;
+    DendCurrVolt(chComps_iC, iApp, chComps_vDend, chComps_newVDend, chComps_vSoma, chComps_q, chComps_r, chComps_s, chComps_newI_CaH);
 
-    // DEBUG
-    /* printf("%f\n", cellCompParamsPtr[step.newCellIdx + DEND_V]);
-    printf("%f\n\n", cellCompParamsPtr[step.newCellIdx + DEND_I]); */
-   
+    if (step.i == 3)
+    {
+        printf("chComps_ic, i=%d x=%d y=%d %f\n", step.i, step.x, step.y, chComps_iC);
+    }
     return;
 }
 
-mod_prec DendHCurr(mod_prec v, mod_prec prevComp1)
+void DendHCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1)
 {
 
-    mod_prec q_inf, tau_q, dq_dt, q_local;
+    mod_prec q_inf, tau_q, dq_dt, q_private;
 
     //Get inputs
-    mod_prec prevV_dend = v;             // *chPrms->v;
-    mod_prec prevHcurrent_q = prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_dend = *chPrms_v;             // *chPrms->v;
+    mod_prec prevHcurrent_q = *chPrms_prevComp1; //*chPrms->prevComp1;
 
     // Update dendritic H current component
     q_inf = 1 / (1 + exp((prevV_dend + 80) / 4));
     tau_q = 1 / (exp(-0.086 * prevV_dend - 14.6) + exp(0.070 * prevV_dend - 1.87));
     dq_dt = (q_inf - prevHcurrent_q) / tau_q;
-    q_local = DELTA * dq_dt + prevHcurrent_q;
+    q_private = DELTA * dq_dt + prevHcurrent_q;
+    //Put result
+    *chPrms_newComp1 = q_private;
 
-    //Return result
-    return q_local;
+    return;
 }
 
-mod_prec DendCaCurr(mod_prec v, mod_prec prevComp1)
+void DendCaCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1)
 {
 
-    mod_prec alpha_r, beta_r, r_inf, tau_r, dr_dt, r_local;
+    mod_prec alpha_r, beta_r, r_inf, tau_r, dr_dt, r_private;
 
     //Get inputs
-    mod_prec prevV_dend = v;            //*chPrms->v;
-    mod_prec prevCalcium_r = prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_dend = *chPrms_v;            //*chPrms->v;
+    mod_prec prevCalcium_r = *chPrms_prevComp1; //*chPrms->prevComp1;
 
     // Update dendritic high-threshold Ca current component
     alpha_r = 1.7 / (1 + exp(-(prevV_dend - 5) / 13.9));
@@ -105,19 +108,21 @@ mod_prec DendCaCurr(mod_prec v, mod_prec prevComp1)
     r_inf = alpha_r / (alpha_r + beta_r);
     tau_r = 5 / (alpha_r + beta_r);
     dr_dt = (r_inf - prevCalcium_r) / tau_r;
-    r_local = DELTA * dr_dt + prevCalcium_r;
+    r_private = DELTA * dr_dt + prevCalcium_r;
     //Put result
-    return r_local; // *chPrms->newComp1
+    *chPrms_newComp1 = r_private; // *chPrms->newComp1
+
+    return;
 }
 
-mod_prec DendKCurr(mod_prec prevComp1, mod_prec prevComp2)
+void DendKCurr(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1)
 {
 
-    mod_prec alpha_s = 0.01, beta_s, s_inf, tau_s, ds_dt, s_local;
+    mod_prec alpha_s = 0.01, beta_s, s_inf, tau_s, ds_dt, s_private;
 
     //Get inputs
-    mod_prec prevPotassium_s = prevComp1; //*chPrms->prevComp1;
-    mod_prec prevCa2Plus = prevComp2;     //*chPrms->prevComp2;
+    mod_prec prevPotassium_s = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevCa2Plus = *chPrms_prevComp2;     //*chPrms->prevComp2;
 
     // Update dendritic Ca-dependent K current component
     if ((0.00002 * prevCa2Plus) < 0.01)
@@ -126,38 +131,45 @@ mod_prec DendKCurr(mod_prec prevComp1, mod_prec prevComp2)
     s_inf = alpha_s / (alpha_s + beta_s);
     tau_s = 1 / (alpha_s + beta_s);
     ds_dt = (s_inf - prevPotassium_s) / tau_s;
-    s_local = DELTA * ds_dt + prevPotassium_s;
+    s_private = DELTA * ds_dt + prevPotassium_s;
     //Put result
-    return s_local; //*chPrms->newComp1
+    *chPrms_newComp1 = s_private; //*chPrms->newComp1
+
+    return;
 }
 
 //Consider merging DendCal into DendKCurr since DendCal's output doesn't go to DendCurrVolt but to DendKCurr
-mod_prec DendCal(mod_prec prevComp1, mod_prec prevComp2)
+void DendCal(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1)
 {
-    mod_prec dCa_dt, Ca2Plus_local;
+    mod_prec dCa_dt, Ca2Plus_private;
 
     //Get inputs
-    mod_prec prevCa2Plus = prevComp1; //*chPrms->prevComp1;
-    mod_prec prevI_CaH = prevComp2;   //*chPrms->prevComp2;
+    mod_prec prevCa2Plus = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevI_CaH = *chPrms_prevComp2;   //*chPrms->prevComp2;
 
     // update Calcium concentration
     dCa_dt = -3 * prevI_CaH - 0.075 * prevCa2Plus;
-    Ca2Plus_local = DELTA * dCa_dt + prevCa2Plus;
+    Ca2Plus_private = DELTA * dCa_dt + prevCa2Plus;
     //Put result
-    return Ca2Plus_local; //*chPrms->newComp1 //This state value is read in DendKCurr
+    *chPrms_newComp1 = Ca2Plus_private; //*chPrms->newComp1 //This state value is read in DendKCurr
+
+    return;
 }
 
-CompRet DendCurrVolt(mod_prec I_c,
-                     mod_prec I_app,
-                     mod_prec prevV_dend,
-                     mod_prec prevV_soma,
-                     mod_prec q,
-                     mod_prec r,
-                     mod_prec s)
+void DendCurrVolt(mod_prec chComps_iC, mod_prec iApp, private mod_prec *chComps_vDend, private mod_prec *chComps_newVDend, private mod_prec *chComps_vSoma, private mod_prec *chComps_q, private mod_prec *chComps_r, private mod_prec *chComps_s, private mod_prec *chComps_newI_CaH)
 {
 
-    //Local variables
+    //Loca variables
     mod_prec I_sd, I_CaH, I_K_Ca, I_ld, I_h, dVd_dt;
+
+    //Get inputs
+    mod_prec I_c = chComps_iC;            //chComps->iC;
+    mod_prec I_app = iApp;                //*chComps->iApp;
+    mod_prec prevV_dend = *chComps_vDend; //*chComps->vDend;
+    mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
+    mod_prec q = *chComps_q;              //*chComps->q;
+    mod_prec r = *chComps_r;              //*chComps->r;
+    mod_prec s = *chComps_s;              //*chComps->s;
 
     // DENDRITIC CURRENTS
 
@@ -175,12 +187,12 @@ CompRet DendCurrVolt(mod_prec I_c,
     dVd_dt = (-(I_CaH + I_sd + I_ld + I_K_Ca + I_c + I_h) + I_app) / C_M;
 
     //Put result (update V_dend)
-    CompRet ret;
-    ret.ret1 = DELTA * dVd_dt + prevV_dend; //*chComps->newVDend
-    ret.ret2 = I_CaH;                       //*chComps->newI_CaH //This is a state value read in DendCal
-    return ret;
+    *chComps_newVDend = DELTA * dVd_dt + prevV_dend; //*chComps->newVDend
+    *chComps_newI_CaH = I_CaH;                       //*chComps->newI_CaH //This is a state value read in DendCal
+    return;
 }
-mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, StepData step)
+
+mod_prec IcNeighbors(private mod_prec *cellCompParamsPtr, mod_prec prevV_dend)
 {
 
     int i;
@@ -191,7 +203,8 @@ mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, St
     for (i = 0; i < 8; i++)
     {
         //printf("%d prevdend: %0.10lf, neighVdend: %0.10lf\n",i, prevV_dend, *neighVdend );
-        V = prevV_dend - cellCompParamsPtr[step.prevCellIdx + STATE_SIZE + i];
+        V = prevV_dend - cellCompParamsPtr[STATE_SIZE + i];
+        //printf("%f\n", cellCompParamsPtr[STATE_SIZE + i]);
         f = 0.8 * exp(-1 * pow(V, 2) / 100) + 0.2; // SCHWEIGHOFER 2004 VERSION
         I_c = I_c + (CONDUCTANCE * f * V);
     }
@@ -199,92 +212,79 @@ mod_prec IcNeighbors(global mod_prec *cellCompParamsPtr, mod_prec prevV_dend, St
     return I_c;
 }
 
-void CompSoma(global mod_prec *cellCompParamsPtr, StepData step)
+void CompSoma(private mod_prec *cellCompParamsPtr, StepData step)
 {
-    //define variables
-    mod_prec vSoma; //*chComps->vSoma;
-    mod_prec prevComp1;
-    mod_prec prevComp2;
-    mod_prec g_CaL; //*chComps->g_CaL;
-    mod_prec vDend; //*chComps->vDend;
-    mod_prec vAxon; //*chComps->vAxon;
-    mod_prec k;     //*chComps->k;
-    mod_prec l;     //*chComps->l;
-    mod_prec m;     //*chComps->m;
-    mod_prec h;     //*chComps->h;
-    mod_prec n;     //*chComps->n;
-    mod_prec x_s;   //*chComps->x_s;
-    CompRet retVals;
+    private mod_prec *chPrms_v;
+    private mod_prec *chPrms_prevComp1, *chPrms_prevComp2;
+    private mod_prec *chPrms_newComp1, *chPrms_newComp2;
+    private mod_prec *chComps_g_CaL;
+    private mod_prec *chComps_vSoma;
+    private mod_prec *chComps_vDend;
+    private mod_prec *chComps_vAxon;
+    private mod_prec *chComps_k, *chComps_l, *chComps_m, *chComps_h, *chComps_n, *chComps_x_s;
+    private mod_prec *chComps_newVSoma;
 
     // update somatic components
     // SCHWEIGHOFER:
 
-    // SomaCalcium
-    vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_CK];
-    prevComp2 = cellCompParamsPtr[step.prevCellIdx + SOMA_CL];
-    retVals = SomaCalcium(vSoma, prevComp1, prevComp2);
-    cellCompParamsPtr[step.newCellIdx + SOMA_CK] = retVals.ret1;
-    cellCompParamsPtr[step.newCellIdx + SOMA_CL] = retVals.ret2;
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[SOMA_V]);                      //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    chPrms_prevComp1 = &(cellCompParamsPtr[SOMA_CK]);             //&cellCompParamsPtr->prevCellState->soma.Calcium_k;
+    chPrms_prevComp2 = &(cellCompParamsPtr[SOMA_CL]);             //&cellCompParamsPtr->prevCellState->soma.Calcium_l;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_CK]); //&cellCompParamsPtr->newCellState->soma.Calcium_k;
+    chPrms_newComp2 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_CL]); //&cellCompParamsPtr->newCellState->soma.Calcium_l;
+    //Compute
+    SomaCalcium(chPrms_v, chPrms_prevComp1, chPrms_prevComp2, chPrms_newComp1, chPrms_newComp2);
 
-    // SomaSodium
-    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_SM];
-    prevComp2 = cellCompParamsPtr[step.prevCellIdx + SOMA_SH];
-    retVals = SomaSodium(vSoma, prevComp1, prevComp2);
-    cellCompParamsPtr[step.newCellIdx + SOMA_SM] = retVals.ret1;
-    cellCompParamsPtr[step.newCellIdx + SOMA_SH] = retVals.ret2;
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[SOMA_V]);                      //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    chPrms_prevComp1 = &(cellCompParamsPtr[SOMA_SM]);             //&cellCompParamsPtr->prevCellState->soma.Sodium_m;
+    chPrms_prevComp2 = &(cellCompParamsPtr[SOMA_SH]);             //&cellCompParamsPtr->prevCellState->soma.Sodium_h;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_SM]); //&cellCompParamsPtr->newCellState->soma.Sodium_m;
+    chPrms_newComp2 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_SH]); //&cellCompParamsPtr->newCellState->soma.Sodium_h;
+    //Compute
+    SomaSodium(chPrms_v, chPrms_prevComp1, chPrms_prevComp2, chPrms_newComp1, chPrms_newComp2);
 
-    // SomaPotassium
-    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_PN];
-    prevComp2 = cellCompParamsPtr[step.prevCellIdx + SOMA_PP];
-    retVals = SomaPotassium(vSoma, prevComp1, prevComp2);
-    cellCompParamsPtr[step.newCellIdx + SOMA_PN] = retVals.ret1;
-    cellCompParamsPtr[step.newCellIdx + SOMA_PP] = retVals.ret2;
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[SOMA_V]);                      //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    chPrms_prevComp1 = &(cellCompParamsPtr[SOMA_PN]);             //&cellCompParamsPtr->prevCellState->soma.Potassium_n;
+    chPrms_prevComp2 = &(cellCompParamsPtr[SOMA_PP]);             //&cellCompParamsPtr->prevCellState->soma.Potassium_p;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_PN]); //&cellCompParamsPtr->newCellState->soma.Potassium_n;
+    chPrms_newComp2 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_PP]); //&cellCompParamsPtr->newCellState->soma.Potassium_p;
+    //Compute
+    SomaPotassium(chPrms_v, chPrms_prevComp1, chPrms_prevComp2, chPrms_newComp1, chPrms_newComp2);
 
-    // SomaPotassiumX
-    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + SOMA_PXS];
-    cellCompParamsPtr[step.newCellIdx + SOMA_PXS] = SomaPotassiumX(vSoma, prevComp1);
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[SOMA_V]);                       //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    chPrms_prevComp1 = &(cellCompParamsPtr[SOMA_PXS]);             //&cellCompParamsPtr->prevCellState->soma.Potassium_x_s;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + SOMA_PXS]); //&cellCompParamsPtr->newCellState->soma.Potassium_x_s;
+    //Compute
+    SomaPotassiumX(chPrms_v, chPrms_prevComp1, chPrms_newComp1);
 
-    // SomaCurrVolt
-    g_CaL = cellCompParamsPtr[step.prevCellIdx + SOMA_G]; //*chComps->g_CaL;
-    vDend = cellCompParamsPtr[step.prevCellIdx + DEND_V]; //*chComps->vDend;
-    // vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V]; //*chComps->vSoma;
-    vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V]; //*chComps->vAxon;
-    k = cellCompParamsPtr[step.newCellIdx + SOMA_CK];     //*chComps->k;
-    l = cellCompParamsPtr[step.newCellIdx + SOMA_CL];     //*chComps->l;
-    m = cellCompParamsPtr[step.newCellIdx + SOMA_SM];     //*chComps->m;
-    h = cellCompParamsPtr[step.newCellIdx + SOMA_SH];     //*chComps->h;
-    n = cellCompParamsPtr[step.newCellIdx + SOMA_PN];     //*chComps->n;
-    x_s = cellCompParamsPtr[step.newCellIdx + SOMA_PXS];  //*chComps->x_s;
-    cellCompParamsPtr[step.newCellIdx + SOMA_V] = SomaCurrVolt(g_CaL,
-                                                               vDend,
-                                                               vSoma,
-                                                               vAxon,
-                                                               k,
-                                                               l,
-                                                               m,
-                                                               h,
-                                                               n,
-                                                               x_s);
-
-    // DEBUG
-    //printf("%f\n", cellCompParamsPtr[step.newCellIdx + SOMA_V]);
+    chComps_g_CaL = &(cellCompParamsPtr[SOMA_G]);                 //&cellCompParamsPtr->prevCellState->soma.g_CaL;
+    chComps_vDend = &(cellCompParamsPtr[DEND_V]);                 //&cellCompParamsPtr->prevCellState->dend.V_dend;
+    chComps_vSoma = &(cellCompParamsPtr[SOMA_V]);                 //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    chComps_newVSoma = &(cellCompParamsPtr[PARAM_SIZE + SOMA_V]); //&cellCompParamsPtr->newCellState->soma.V_soma;
+    chComps_vAxon = &(cellCompParamsPtr[AXON_V]);                 //&cellCompParamsPtr->prevCellState->axon.V_axon;
+    chComps_k = &(cellCompParamsPtr[PARAM_SIZE + SOMA_CK]);       //&cellCompParamsPtr->newCellState->soma.Calcium_k;
+    chComps_l = &(cellCompParamsPtr[PARAM_SIZE + SOMA_CL]);       //&cellCompParamsPtr->newCellState->soma.Calcium_l;
+    chComps_m = &(cellCompParamsPtr[PARAM_SIZE + SOMA_SM]);       //&cellCompParamsPtr->newCellState->soma.Sodium_m;
+    chComps_h = &(cellCompParamsPtr[PARAM_SIZE + SOMA_SH]);       //&cellCompParamsPtr->newCellState->soma.Sodium_h;
+    chComps_n = &(cellCompParamsPtr[PARAM_SIZE + SOMA_PN]);       //&cellCompParamsPtr->newCellState->soma.Potassium_n;
+    chComps_x_s = &(cellCompParamsPtr[PARAM_SIZE + SOMA_PXS]);    // &cellCompParamsPtr->newCellState->soma.Potassium_x_s;
+    SomaCurrVolt(chComps_g_CaL, chComps_vDend, chComps_vSoma, chComps_newVSoma, chComps_vAxon, chComps_k, chComps_l, chComps_m, chComps_h, chComps_n, chComps_x_s);
 
     return;
 }
 
-CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
+void SomaCalcium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2)
 {
-
-    mod_prec k_inf, l_inf, tau_k, tau_l, dk_dt, dl_dt, k_local, l_local;
+    mod_prec k_inf, l_inf, tau_k, tau_l, dk_dt, dl_dt, k_private, l_private;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma;        //*chPrms->v;
-    mod_prec prevCalcium_k = prevComp1; //*chPrms->prevComp1;
-    mod_prec prevCalcium_l = prevComp2; //*chPrms->prevComp2;
+    mod_prec prevV_soma = *chPrms_v;            //*chPrms->v;
+    mod_prec prevCalcium_k = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevCalcium_l = *chPrms_prevComp2; //*chPrms->prevComp2;
 
     k_inf = (1 / (1 + exp(-1 * (prevV_soma + 61) / 4.2)));
     l_inf = (1 / (1 + exp((prevV_soma + 85.5) / 8.5)));
@@ -292,48 +292,46 @@ CompRet SomaCalcium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     tau_l = ((20 * exp((prevV_soma + 160) / 30) / (1 + exp((prevV_soma + 84) / 7.3))) + 35);
     dk_dt = (k_inf - prevCalcium_k) / tau_k;
     dl_dt = (l_inf - prevCalcium_l) / tau_l;
-    k_local = DELTA * dk_dt + prevCalcium_k;
-    l_local = DELTA * dl_dt + prevCalcium_l;
+    k_private = DELTA * dk_dt + prevCalcium_k;
+    l_private = DELTA * dl_dt + prevCalcium_l;
     //Put result
-    CompRet retVals;
-    retVals.ret1 = k_local; //*chPrms->newComp1
-    retVals.ret2 = l_local; //*chPrms->newComp2
-    return retVals;
+    *chPrms_newComp1 = k_private; //*chPrms->newComp1
+    *chPrms_newComp2 = l_private; //*chPrms->newComp2
+
+    return;
 }
 
-CompRet SomaSodium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
+void SomaSodium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2)
 {
-
-    mod_prec m_inf, h_inf, tau_h, dh_dt, m_local, h_local;
+    mod_prec m_inf, h_inf, tau_h, dh_dt, m_private, h_private;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma; //*chPrms->v;
+    mod_prec prevV_soma = *chPrms_v; //*chPrms->v;
     //mod_prec prevSodium_m = *chPrms->prevComp1;
-    mod_prec prevSodium_h = prevComp2; //*chPrms->prevComp2;
+    mod_prec prevSodium_h = *chPrms_prevComp2; //*chPrms->prevComp2;
 
     // RAT THALAMOCORTICAL SODIUM:
     m_inf = 1 / (1 + (exp((-30 - prevV_soma) / 5.5)));
     h_inf = 1 / (1 + (exp((-70 - prevV_soma) / -5.8)));
     tau_h = 3 * exp((-40 - prevV_soma) / 33);
     dh_dt = (h_inf - prevSodium_h) / tau_h;
-    m_local = m_inf;
-    h_local = prevSodium_h + DELTA * dh_dt;
+    m_private = m_inf;
+    h_private = prevSodium_h + DELTA * dh_dt;
     //Put result
-    CompRet retVals;
-    retVals.ret1 = m_local; //*chPrms->newComp1
-    retVals.ret2 = h_local; //*chPrms->newComp2
-    return retVals;
+    *chPrms_newComp1 = m_private; //*chPrms->newComp1
+    *chPrms_newComp2 = h_private; //*chPrms->newComp2
+
+    return;
 }
 
-CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
+void SomaPotassium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2)
 {
-
-    mod_prec n_inf, p_inf, tau_n, tau_p, dn_dt, dp_dt, n_local, p_local;
+    mod_prec n_inf, p_inf, tau_n, tau_p, dn_dt, dp_dt, n_private, p_private;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma;          //*chPrms->v;
-    mod_prec prevPotassium_n = prevComp1; //*chPrms->prevComp1;
-    mod_prec prevPotassium_p = prevComp2; //*chPrms->prevComp2;
+    mod_prec prevV_soma = *chPrms_v;              //*chPrms->v;
+    mod_prec prevPotassium_n = *chPrms_prevComp1; //*chPrms->prevComp1;
+    mod_prec prevPotassium_p = *chPrms_prevComp2; //*chPrms->prevComp2;
 
     // NEOCORTICAL
     n_inf = 1 / (1 + exp((-3 - prevV_soma) / 10));
@@ -342,23 +340,23 @@ CompRet SomaPotassium(mod_prec vSoma, mod_prec prevComp1, mod_prec prevComp2)
     tau_p = tau_n;
     dn_dt = (n_inf - prevPotassium_n) / tau_n;
     dp_dt = (p_inf - prevPotassium_p) / tau_p;
-    n_local = DELTA * dn_dt + prevPotassium_n;
-    p_local = DELTA * dp_dt + prevPotassium_p;
+    n_private = DELTA * dn_dt + prevPotassium_n;
+    p_private = DELTA * dp_dt + prevPotassium_p;
     //Put result
-    CompRet retVals;
-    retVals.ret1 = n_local; //*chPrms->newComp1
-    retVals.ret2 = p_local; //*chPrms->newComp2
-    return retVals;
+    *chPrms_newComp1 = n_private; //*chPrms->newComp1
+    *chPrms_newComp2 = p_private; //*chPrms->newComp2
+
+    return;
 }
 
-mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1)
+void SomaPotassiumX(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1)
 {
 
-    mod_prec alpha_x_s, beta_x_s, x_inf_s, tau_x_s, dx_dt_s, x_s_local;
+    mod_prec alpha_x_s, beta_x_s, x_inf_s, tau_x_s, dx_dt_s, x_s_private;
 
     //Get inputs
-    mod_prec prevV_soma = vSoma;            //*chPrms->v;
-    mod_prec prevPotassium_x_s = prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_soma = *chPrms_v;                //*chPrms->v;
+    mod_prec prevPotassium_x_s = *chPrms_prevComp1; //*chPrms->prevComp1;
 
     // Voltage-dependent (fast) potassium
     alpha_x_s = 0.13 * (prevV_soma + 25) / (1 - exp(-(prevV_soma + 25) / 10));
@@ -366,23 +364,29 @@ mod_prec SomaPotassiumX(mod_prec vSoma, mod_prec prevComp1)
     x_inf_s = alpha_x_s / (alpha_x_s + beta_x_s);
     tau_x_s = 1 / (alpha_x_s + beta_x_s);
     dx_dt_s = (x_inf_s - prevPotassium_x_s) / tau_x_s;
-    x_s_local = 0.05 * dx_dt_s + prevPotassium_x_s;
+    x_s_private = 0.05 * dx_dt_s + prevPotassium_x_s;
     //Put result
-    return x_s_local; //*chPrms->newComp1
+    *chPrms_newComp1 = x_s_private; //*chPrms->newComp1
+
+    return;
 }
-mod_prec SomaCurrVolt(mod_prec g_CaL,
-                      mod_prec prevV_dend,
-                      mod_prec prevV_soma,
-                      mod_prec prevV_axon,
-                      mod_prec k,
-                      mod_prec l,
-                      mod_prec m,
-                      mod_prec h,
-                      mod_prec n,
-                      mod_prec x_s)
+
+void SomaCurrVolt(private mod_prec *chComps_g_CaL, private mod_prec *chComps_vDend, private mod_prec *chComps_vSoma, private mod_prec *chComps_newVSoma, private mod_prec *chComps_vAxon, private mod_prec *chComps_k, private mod_prec *chComps_l, private mod_prec *chComps_m, private mod_prec *chComps_h, private mod_prec *chComps_n, private mod_prec *chComps_x_s)
 {
-    //Local variables
+    //private variables
     mod_prec I_ds, I_CaL, I_Na_s, I_ls, I_Kdr_s, I_K_s, I_as, dVs_dt;
+
+    //Get inputs
+    mod_prec g_CaL = *chComps_g_CaL;      //*chComps->g_CaL;
+    mod_prec prevV_dend = *chComps_vDend; //*chComps->vDend;
+    mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
+    mod_prec prevV_axon = *chComps_vAxon; //*chComps->vAxon;
+    mod_prec k = *chComps_k;              //*chComps->k;
+    mod_prec l = *chComps_l;              //*chComps->l;
+    mod_prec m = *chComps_m;              //*chComps->m;
+    mod_prec h = *chComps_h;              //*chComps->h;
+    mod_prec n = *chComps_n;              //*chComps->n;
+    mod_prec x_s = *chComps_x_s;          //*chComps->x_s;
 
     // SOMATIC CURRENTS
 
@@ -402,60 +406,60 @@ mod_prec SomaCurrVolt(mod_prec g_CaL,
     I_as = (G_INT / (1 - P2)) * (prevV_soma - prevV_axon);
 
     dVs_dt = (-(I_CaL + I_ds + I_as + I_Na_s + I_ls + I_Kdr_s + I_K_s)) / C_M;
-    return (DELTA * dVs_dt + prevV_soma); // *chComps->newVSoma
-}
-
-void CompAxon(global mod_prec *cellCompParamsPtr, StepData step)
-{
-
-    // update somatic components
-    // SCHWEIGHOFER:
-    mod_prec vAxon;
-    mod_prec prevComp1;
-    mod_prec prevComp2;
-    CompRet retVals;
-    mod_prec vSoma;
-    mod_prec m_a;
-    mod_prec h_a;
-    mod_prec x_a;
-
-    // AxonSodium
-    vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + AXON_SH];
-    retVals = AxonSodium(vAxon, prevComp1);
-    cellCompParamsPtr[step.newCellIdx + AXON_SH] = retVals.ret1;
-    cellCompParamsPtr[step.newCellIdx + AXON_SM] = retVals.ret2;
-
-    // AxonPotassium
-    // vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V];
-    prevComp1 = cellCompParamsPtr[step.prevCellIdx + AXON_P];
-    cellCompParamsPtr[step.newCellIdx + AXON_P] = AxonPotassium(vAxon, prevComp1);
-
-    // AxonCurrVolt();
-    vSoma = cellCompParamsPtr[step.prevCellIdx + SOMA_V]; //&cellCompParamsPtr->prevCellState->soma.V_soma;
-    vAxon = cellCompParamsPtr[step.prevCellIdx + AXON_V]; //&cellCompParamsPtr->prevCellState->axon.V_axon;
-    m_a = cellCompParamsPtr[step.newCellIdx + AXON_SM];   //&cellCompParamsPtr->newCellState->axon.Sodium_m_a;
-    h_a = cellCompParamsPtr[step.newCellIdx + AXON_SH];   //&cellCompParamsPtr->newCellState->axon.Sodium_h_a;
-    x_a = cellCompParamsPtr[step.newCellIdx + AXON_P];    //&cellCompParamsPtr->newCellState->axon.Potassium_x_a;
-    cellCompParamsPtr[step.newCellIdx + AXON_V] = AxonCurrVolt(vSoma, vAxon, m_a, h_a, x_a);
-    
-    // DEBUG
-    /* if (step.i == 1)
-    {
-        printf("%f\n", cellCompParamsPtr[step.newCellIdx + AXON_V]);
-    } */
+    *chComps_newVSoma = DELTA * dVs_dt + prevV_soma; // *chComps->newVSoma
 
     return;
 }
 
-CompRet AxonSodium(mod_prec vAxon, mod_prec prevComp1)
+void CompAxon(private mod_prec *cellCompParamsPtr, StepData step)
 {
 
-    mod_prec m_inf_a, h_inf_a, tau_h_a, dh_dt_a, m_a_local, h_a_local;
+    private mod_prec *chPrms_v;
+    private mod_prec *chPrms_prevComp1; // *chPrms_prevComp2;
+    private mod_prec *chPrms_newComp1, *chPrms_newComp2;
+    private mod_prec *chComps_vSoma;
+    private mod_prec *chComps_vAxon;
+    private mod_prec *chComps_m_a, *chComps_h_a, *chComps_x_a;
+    private mod_prec *chComps_newVAxon;
+
+    // update somatic components
+    // SCHWEIGHOFER:
+
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[AXON_V]);                      //prevCellState->axon.V_axon;
+    chPrms_prevComp1 = &(cellCompParamsPtr[AXON_SH]);             //prevCellState->axon.Sodium_h_a;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + AXON_SH]); //&cellCompParamsPtr->newCellState->axon.Sodium_h_a;
+    chPrms_newComp2 = &(cellCompParamsPtr[PARAM_SIZE + AXON_SM]); //&cellCompParamsPtr->newCellState->axon.Sodium_m_a;
+    //Compute
+    AxonSodium(chPrms_v, chPrms_prevComp1, chPrms_newComp1, chPrms_newComp2);
+
+    //Prepare pointers to inputs/outputs
+    chPrms_v = &(cellCompParamsPtr[AXON_V]);                     //&cellCompParamsPtr->prevCellState->axon.V_axon;
+    chPrms_prevComp1 = &(cellCompParamsPtr[AXON_P]);             //&cellCompParamsPtr->prevCellState->axon.Potassium_x_a;
+    chPrms_newComp1 = &(cellCompParamsPtr[PARAM_SIZE + AXON_P]); //&cellCompParamsPtr->newCellState->axon.Potassium_x_a;
+    //Compute
+    AxonPotassium(chPrms_v, chPrms_prevComp1, chPrms_newComp1);
 
     //Get inputs
-    mod_prec prevV_axon = vAxon;         //*chPrms->v;
-    mod_prec prevSodium_h_a = prevComp1; //*chPrms->prevComp1;
+    chComps_vSoma = &(cellCompParamsPtr[SOMA_V]);                 //&cellCompParamsPtr->prevCellState->soma.V_soma;
+    chComps_vAxon = &(cellCompParamsPtr[AXON_V]);                 //&cellCompParamsPtr->prevCellState->axon.V_axon;
+    chComps_newVAxon = &(cellCompParamsPtr[PARAM_SIZE + AXON_V]); //&cellCompParamsPtr->newCellState->axon.V_axon;
+    chComps_m_a = &(cellCompParamsPtr[PARAM_SIZE + AXON_SM]);     //&cellCompParamsPtr->newCellState->axon.Sodium_m_a;
+    chComps_h_a = &(cellCompParamsPtr[PARAM_SIZE + AXON_SH]);     //&cellCompParamsPtr->newCellState->axon.Sodium_h_a;
+    chComps_x_a = &(cellCompParamsPtr[PARAM_SIZE + AXON_P]);      //&cellCompParamsPtr->newCellState->axon.Potassium_x_a;
+    AxonCurrVolt(chComps_vSoma, chComps_vAxon, chComps_newVAxon, chComps_m_a, chComps_h_a, chComps_x_a);
+
+    return;
+}
+
+void AxonSodium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2)
+{
+
+    mod_prec m_inf_a, h_inf_a, tau_h_a, dh_dt_a, m_a_private, h_a_private;
+
+    //Get inputs
+    mod_prec prevV_axon = *chPrms_v;             //*chPrms->v;
+    mod_prec prevSodium_h_a = *chPrms_prevComp1; //*chPrms->prevComp1;
 
     // Update axonal Na components
     // NOTE: current has shortened inactivation to account for high
@@ -464,23 +468,23 @@ CompRet AxonSodium(mod_prec vAxon, mod_prec prevComp1)
     h_inf_a = 1 / (1 + (exp((-60 - prevV_axon) / (-5.8))));
     tau_h_a = 1.5 * exp((-40 - prevV_axon) / 33);
     dh_dt_a = (h_inf_a - prevSodium_h_a) / tau_h_a;
-    m_a_local = m_inf_a;
-    h_a_local = prevSodium_h_a + DELTA * dh_dt_a;
+    m_a_private = m_inf_a;
+    h_a_private = prevSodium_h_a + DELTA * dh_dt_a;
     //Put result
-    CompRet retVals;
-    retVals.ret1 = h_a_local; //*chPrms->newComp1
-    retVals.ret2 = m_a_local; //*chPrms->newComp2
-    return retVals;
+    *chPrms_newComp1 = h_a_private; //*chPrms->newComp1
+    *chPrms_newComp2 = m_a_private; //*chPrms->newComp2
+
+    return;
 }
 
-mod_prec AxonPotassium(mod_prec vAxon, mod_prec prevComp1)
+void AxonPotassium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1)
 {
 
-    mod_prec alpha_x_a, beta_x_a, x_inf_a, tau_x_a, dx_dt_a, x_a_local;
+    mod_prec alpha_x_a, beta_x_a, x_inf_a, tau_x_a, dx_dt_a, x_a_private;
 
     //Get inputs
-    mod_prec prevV_axon = vAxon;            //*chPrms->v;
-    mod_prec prevPotassium_x_a = prevComp1; //*chPrms->prevComp1;
+    mod_prec prevV_axon = *chPrms_v;                //*chPrms->v;
+    mod_prec prevPotassium_x_a = *chPrms_prevComp1; //*chPrms->prevComp1;
 
     // D'ANGELO 2001 -- Voltage-dependent potassium
     alpha_x_a = 0.13 * (prevV_axon + 25) / (1 - exp(-(prevV_axon + 25) / 10));
@@ -488,20 +492,25 @@ mod_prec AxonPotassium(mod_prec vAxon, mod_prec prevComp1)
     x_inf_a = alpha_x_a / (alpha_x_a + beta_x_a);
     tau_x_a = 1 / (alpha_x_a + beta_x_a);
     dx_dt_a = (x_inf_a - prevPotassium_x_a) / tau_x_a;
-    x_a_local = 0.05 * dx_dt_a + prevPotassium_x_a;
+    x_a_private = 0.05 * dx_dt_a + prevPotassium_x_a;
     //Put result
-    return x_a_local; //*chPrms->newComp1
+    *chPrms_newComp1 = x_a_private; //*chPrms->newComp1
+
+    return;
 }
 
-mod_prec AxonCurrVolt(mod_prec prevV_soma,
-                      mod_prec prevV_axon,
-                      mod_prec m_a,
-                      mod_prec h_a,
-                      mod_prec x_a)
+void AxonCurrVolt(private mod_prec *chComps_vSoma, private mod_prec *chComps_vAxon, private mod_prec *chComps_newVAxon, private mod_prec *chComps_m_a, private mod_prec *chComps_h_a, private mod_prec *chComps_x_a)
 {
 
-    //Local variable
+    //private variable
     mod_prec I_Na_a, I_la, I_sa, I_K_a, dVa_dt;
+
+    //Get inputs
+    mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
+    mod_prec prevV_axon = *chComps_vAxon; //*chComps->vAxon;
+    mod_prec m_a = *chComps_m_a;          //*chComps->m_a;
+    mod_prec h_a = *chComps_h_a;          //*chComps->h_a;
+    mod_prec x_a = *chComps_x_a;          //*chComps->x_a;
 
     // AXONAL CURRENTS
     // Sodium
@@ -514,7 +523,8 @@ mod_prec AxonCurrVolt(mod_prec prevV_soma,
     //I_K_a   = G_K_A * pow(x_a, 4) * (prevV_axon - V_K);
     I_K_a = G_K_A * x_a * x_a * x_a * x_a * (prevV_axon - V_K);
     dVa_dt = (-(I_K_a + I_sa + I_la + I_Na_a)) / C_M;
-    return (DELTA * dVa_dt + prevV_axon); //*chComps->newVAxon
+    *chComps_newVAxon = DELTA * dVa_dt + prevV_axon; //*chComps->newVAxon
+    return;
 }
 
 /**
@@ -522,7 +532,7 @@ Input: cellCompParamsPtr, cellStatePtr, iApp ,i
 cellCompParamsPtr: Array of struct which stores values of neighbours for each cell.
 cellStatePtr: Array with values for each cell.
 iApp: Extenal input of the dendrite
-i: Current simulation step
+i: Current simulation step 
 
 Retreive the external input of the dedrite 
 and update the previous and new state of the current cell.
@@ -530,36 +540,46 @@ Then Compute the new variables of the current cell with ComputeOneCell.
 **/
 __kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cellCompParamsPtr, mod_prec iApp, uint i)
 {
-    int y = get_global_id(0);
-    int x = get_global_id(1);
 
-    // TODO smarter way of copying data? memcpy not supported in opencl
+    private mod_prec cellCompParamsPtrPrivate[LOCAL_PARAM_SIZE];
+
+    int y = get_global_id(0);
+    int x = get_global_id(1); 
+
+    // Previous cell state in indices 0-26
+    // Next cell state in indices 27-53
     for (int idx = 0; idx < STATE_SIZE; idx++)
     {
         // Previous cell state
-        cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + idx] = cellStatePtr[(i % 2) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx];
+        cellCompParamsPtrPrivate[idx] = cellStatePtr[(i % 2) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx];
         // Next cell state
-        cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx];
+        cellCompParamsPtrPrivate[PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx];
     }
-    // Previous cell state in indices 0-27
-    // Next cell state in indices 28-53
 
-    //Step data that needs to go with the ptr to access correct indices
+    // Copy neighbour data to private pointer
+    for (int idx = STATE_SIZE; idx < PARAM_SIZE; idx++)
+    {
+        cellCompParamsPtrPrivate[idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + idx];
+    }
+
+    /* if (i == 0)
+    {
+        for (int idx = STATE_SIZE; idx < PARAM_SIZE; idx++)
+        {
+            printf("x=%d y=%d i=%d idx=%d %f\n", x, y, i, idx, cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * private_PARAM_SIZE + idx]);
+        }
+    } */
+
     StepData step;
-    step.iApp = iApp;
     step.i = i;
     step.x = x;
     step.y = y;
-    step.prevCellIdx = (y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE;
-    step.newCellIdx = step.prevCellIdx + PARAM_SIZE;
 
-    ComputeOneCell(cellCompParamsPtr, step);
+    ComputeOneCell(cellCompParamsPtrPrivate, iApp, step);
 
     // Copy data back
     for (int idx = 0; idx < STATE_SIZE; idx++)
     {
-        cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM1 + x) * STATE_SIZE + idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM1 + x) * LOCAL_PARAM_SIZE + PARAM_SIZE + idx];
+        cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx] = cellCompParamsPtrPrivate[PARAM_SIZE + idx];
     }
 }
-
-

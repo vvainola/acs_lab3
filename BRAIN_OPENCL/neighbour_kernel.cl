@@ -33,9 +33,8 @@ __kernel void neighbour_kernel(global mod_prec *cellStatePtr, global mod_prec *c
     // DEBUG
     /* if (i == 0)
     {
-        printf("neighbour\n");
-        int u;
-        for (u = 0; u < 8; u++)
+        //printf("neighbour\n");
+        for (int u = 0; u < 8; u++)
         {
             printf("%f\n", cellCompParamsPtr[(y*IO_NETWORK_DIM2 + x)*LOCAL_PARAM_SIZE + STATE_SIZE + u]);
         }

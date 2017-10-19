@@ -423,8 +423,8 @@ int main(int argc, char *argv[])
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
 
-    size_t local_work_size = min(8, IO_NETWORK_DIM1);
-    size_t localWorkSize[] = {local_work_size, local_work_size};
+    //size_t local_work_size = min(8, IO_NETWORK_DIM1);
+    //size_t localWorkSize[] = {local_work_size, local_work_size};
 
     if (EXTRA_TIMING)
     {
@@ -487,7 +487,7 @@ int main(int argc, char *argv[])
             2,
             NULL,
             globalWorkSize,
-            localWorkSize,
+            NULL,
             1,
             &writeDone, // Wait for initial write
             &neighbourDone);
@@ -514,7 +514,7 @@ int main(int argc, char *argv[])
             2,
             NULL,
             globalWorkSize,
-            localWorkSize,
+            NULL,
             1,
             &neighbourDone, // Wait for neighbour done
             &computeDone);
