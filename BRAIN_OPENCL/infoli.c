@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     int inputFromFile = 0;
     int initSteps;
     cl_mod_prec *cellStatePtr;
-    cl_mod_prec *cellCompParamsPtr;
+    cl_mod_prec *cellVDendPtr;
     cl_mod_prec iApp;
     int seedvar;
     timestamp_t t0, t1, usecs, tNeighbourStart, tNeighbourEnd, tComputeStart,
@@ -106,10 +106,6 @@ int main(int argc, char *argv[])
 
     cl_event writeDone, neighbourDone, computeDone, readDone;
     cl_int status;
-
-    cl_mod_prec *cellVDendPtr;
-    const size_t origin[3] = {0, 0, 0};
-    const size_t region[3] = {IO_NETWORK_DIM1, IO_NETWORK_DIM2, 1};
 
     t0 = get_timestamp();
     if (EXTRA_TIMING)
@@ -132,13 +128,13 @@ int main(int argc, char *argv[])
     writeOutput(temp, ("#simSteps Time(ms) Input(Iapp) Output(V_axon)\n"), pOutFile);
 
     //Malloc for the array of cellStates and cellCompParams
-    mallocCells(&cellCompParamsPtr, &cellStatePtr, &cellVDendPtr);
+    mallocCells(&cellStatePtr, &cellVDendPtr);
 
     //Write initial state values
     InitState(cellStatePtr, cellVDendPtr);
 
     //Initialize g_CaL
-    init_g_CaL(cellStatePtr);
+    //init_g_CaL(cellStatePtr);
 
     //-----------------------------------------------------
     // STEP 1: Discover and initialize the platforms
@@ -250,18 +246,12 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 5: Create device buffers
     //-----------------------------------------------------
-    cl_mem bufferCellState, bufferCellCompParams, t_cellVDendPtr;
-
-    if (status != CL_SUCCESS)
-    {
-        printf("error in step 5, creating buffer for bufferiApp\n");
-        exit(-1);
-    }
+    cl_mem bufferCellState, bufferCellVDend;
 
     bufferCellState = clCreateBuffer(
         context,
         CL_MEM_READ_WRITE,
-        2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * STATE_SIZE * sizeof(cl_mod_prec),
+        IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * PARAM_SIZE * sizeof(cl_mod_prec),
         NULL,
         &status);
 
@@ -271,43 +261,16 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    bufferCellCompParams = clCreateBuffer(
+    bufferCellVDend = clCreateBuffer(
         context,
         CL_MEM_READ_WRITE,
-        IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_mod_prec),
+        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
         NULL,
         &status);
 
     if (status != CL_SUCCESS)
     {
-        printf("error in step 5, creating buffer for bufferCellCompParams\n");
-        exit(-1);
-    }
-
-    cl_image_format format = {CL_RA, CL_UNSIGNED_INT32};
-
-    cl_image_desc image_desc;
-    image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
-    image_desc.image_width = IO_NETWORK_DIM1;
-    image_desc.image_height = IO_NETWORK_DIM2;
-    image_desc.image_depth = 1;
-    image_desc.image_array_size = 1;
-    image_desc.image_row_pitch = 0;
-    image_desc.image_slice_pitch = 0;
-    image_desc.num_mip_levels = 0;
-    image_desc.num_samples = 0;
-    image_desc.buffer = NULL;
-
-    t_cellVDendPtr = clCreateImage(
-        context,
-        CL_MEM_READ_WRITE,
-        &format,
-        &image_desc,
-        NULL,
-        &status);
-    if (status != CL_SUCCESS)
-    {
-        printf("error in step 5, creating buffer for image\n");
+        printf("error in step 5, creating buffer for bufferCellVDend\n");
         exit(-1);
     }
 
@@ -319,25 +282,22 @@ int main(int argc, char *argv[])
         bufferCellState,
         CL_FALSE,
         0,
-        2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
+        IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec),
         cellStatePtr,
         0,
         NULL,
         &writeDone);
 
-    status |=
-        clEnqueueWriteImage(
-            cmdQueue,
-            t_cellVDendPtr,
-            CL_FALSE,
-            origin,
-            region,
-            0,
-            0,
-            cellVDendPtr,
-            0,
-            NULL,
-            &writeDone);
+    status |= clEnqueueWriteBuffer(
+        cmdQueue,
+        bufferCellVDend,
+        CL_FALSE,
+        0,
+        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+        cellVDendPtr,
+        0,
+        NULL,
+        &writeDone);
 
     if (status != CL_SUCCESS)
     {
@@ -474,32 +434,41 @@ int main(int argc, char *argv[])
         neighbourKernel,
         0,
         sizeof(cl_mem),
-        &t_cellVDendPtr);
+        &bufferCellState);
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 9.1\n");
+        exit(-1);
+    }
     status |= clSetKernelArg(
         neighbourKernel,
         1,
         sizeof(cl_mem),
-        &bufferCellCompParams);
+        &bufferCellVDend);
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 9.2\n");
+        exit(-1);
+    }
 
     status |= clSetKernelArg(
         computeKernel,
         0,
         sizeof(cl_mem),
-        &t_cellVDendPtr);
+        &bufferCellState);
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 9.3\n");
+        exit(-1);
+    }
     status |= clSetKernelArg(
         computeKernel,
         1,
         sizeof(cl_mem),
-        &bufferCellState);
-    status |= clSetKernelArg(
-        computeKernel,
-        2,
-        sizeof(cl_mem),
-        &bufferCellCompParams);
-
+        &bufferCellVDend);
     if (status != CL_SUCCESS)
     {
-        printf("error in step 9\n");
+        printf("error in step 9.4\n");
         exit(-1);
     }
 
@@ -545,17 +514,17 @@ int main(int argc, char *argv[])
 
         status |= clSetKernelArg(
             computeKernel,
-            3,
+            2,
             sizeof(cl_mod_prec),
             &iApp);
         status |= clSetKernelArg(
             computeKernel,
-            4,
+            3,
             sizeof(cl_uint),
             &i);
         if (status != CL_SUCCESS)
         {
-            printf("error in step 9\n");
+            printf("error in step 11.0\n");
             exit(-1);
         }
 
@@ -634,9 +603,9 @@ int main(int argc, char *argv[])
                 cmdQueue,
                 bufferCellState,
                 CL_TRUE,
-                ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
-                IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
-                &cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE],
+                0,
+                IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec),
+                cellStatePtr,
                 1,
                 &computeDone,
                 NULL);
@@ -683,16 +652,11 @@ int main(int argc, char *argv[])
                 {
                     tWriteFileStart = get_timestamp();
                 }
-                for (j = 0; j < IO_NETWORK_DIM1; j++)
+                for (j = 0; j < IO_NETWORK_SIZE; j++)
                 {
-                    for (k = 0; k < IO_NETWORK_DIM2; k++)
-                    {
-                        writeOutputDouble(
-                            temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE 
-                                        + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE
-                                        + AXON_V],
-                            pOutFile);
-                    }
+                    writeOutputDouble(
+                        temp, cellStatePtr[j * PARAM_SIZE + AXON_V],
+                        pOutFile);
                 }
             }
             writeOutput(temp, ("\n"), pOutFile);
@@ -746,13 +710,12 @@ int main(int argc, char *argv[])
     clReleaseProgram(computeProgram);
     clReleaseCommandQueue(cmdQueue);
     clReleaseMemObject(bufferCellState);
-    clReleaseMemObject(bufferCellCompParams);
-    clReleaseMemObject(t_cellVDendPtr);
+    clReleaseMemObject(bufferCellVDend);
     clReleaseContext(context);
 
     //Free up memory and close files
     free(cellStatePtr);
-    free(cellCompParamsPtr);
+    free(cellVDendPtr);
     fclose(pOutFile);
 
     return EXIT_SUCCESS;

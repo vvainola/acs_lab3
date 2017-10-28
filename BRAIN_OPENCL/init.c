@@ -1,22 +1,14 @@
 #include "init.h"
 
-void mallocCells(cl_mod_prec **cellCompParamsPtr, cl_mod_prec **cellStatePtr, cl_mod_prec **cellVDendPtr)
+void mallocCells(cl_mod_prec **cellStatePtr, cl_mod_prec **cellVDendPtr)
 {
     int k;
-    DEBUG_PRINT(("cellStatePtr: %luB\n", 2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec)));
+    DEBUG_PRINT(("cellStatePtr: %luB\n", IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec)));
     //Two cell state structs are needed so as to avoid having to synchronize all consumers before they start rewriting the cell state.
-    (*cellStatePtr) = malloc(2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec)); //current and next state
+    (*cellStatePtr) = malloc(IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec)); //current and next state
     if ((*cellStatePtr) == NULL)
     {
         printf("Error: Couldn't malloc for cellStatePtr\n");
-        exit(EXIT_FAILURE);
-    }
-
-    DEBUG_PRINT(("cellCompParamsPtr: %luB\n", IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_mod_prec)));
-    (*cellCompParamsPtr) = malloc(IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_mod_prec));
-    if ((*cellCompParamsPtr) == NULL)
-    {
-        printf("Error: Couldn't malloc for cellCompParamsPtr\n");
         exit(EXIT_FAILURE);
     }
 
@@ -63,7 +55,7 @@ void InitState(cl_mod_prec *cellStatePtr, cl_mod_prec *cellVDendPtr)
     {
         for (b = 0; b < STATE_SIZE; b++)
         {
-            cellStatePtr[i * STATE_SIZE + b] = cellStateInit[b];
+            cellStatePtr[i * PARAM_SIZE + b] = cellStateInit[b];
         }
         cellVDendPtr[i] = cellStateInit[DEND_V];
     }
@@ -78,6 +70,6 @@ void init_g_CaL(cl_mod_prec *cellStatePtr)
     for (i = 0; i < IO_NETWORK_SIZE; i++)
     {
         srand(seedvar++); // use this for debugging, now there is difference
-        cellStatePtr[(IO_NETWORK_SIZE + i) * STATE_SIZE + SOMA_G] = cellStatePtr[i * STATE_SIZE + SOMA_G] = 0.68;
+        cellStatePtr[(IO_NETWORK_SIZE + i) * PARAM_SIZE + SOMA_G] = 0.68;
     }
 }

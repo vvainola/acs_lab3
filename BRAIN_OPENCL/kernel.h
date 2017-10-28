@@ -15,8 +15,8 @@ typedef struct StepData
     //int newCellIdx;
 } StepData;
 
-void ComputeOneCell(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompParamsPtr, StepData step);
-void CompDend(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompParamsPtr, StepData step);
+void ComputeOneCell(private mod_prec *cellCompParamsPtr);
+void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp);
 void DendHCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void DendCaCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void DendKCurr(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1);
@@ -32,7 +32,7 @@ void DendCurrVolt(mod_prec chComps_iC,
                   private mod_prec *chComps_newI_CaH);
 mod_prec IcNeighbors(private mod_prec *cellCompParamsPtr, mod_prec prevV_dend);
 
-void CompSoma(__private mod_prec *cellCompParamsPtr, StepData step);
+void CompSoma(private mod_prec *cellCompParamsPtr);
 void SomaCalcium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2);
 void SomaSodium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2);
 void SomaPotassium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2);
@@ -49,7 +49,7 @@ void SomaCurrVolt(private mod_prec *chComps_g_CaL,
                   private mod_prec *chComps_n,
                   private mod_prec *chComps_x_s);
 
-void CompAxon(private mod_prec *cellCompParamsPtr, StepData step);
+void CompAxon(private mod_prec *cellCompParamsPtr);
 void AxonSodium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1, private mod_prec *chPrms_newComp2);
 void AxonPotassium(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void AxonCurrVolt(private mod_prec *chComps_vSoma,

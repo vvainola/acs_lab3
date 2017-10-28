@@ -1,16 +1,16 @@
 #include "kernel.h"
 
 //#include <math.h>
-void ComputeOneCell(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompParamsPtr, StepData step)
+/* void ComputeOneCell(private mod_prec *cellCompParamsPtr)
 {
     //The three compartments can be computed concurrently but only across a single sim step
-    CompDend(t_cellVDendPtr, cellCompParamsPtr, step);
+    CompDend(cellCompParamsPtr, step);
     CompSoma(cellCompParamsPtr, step);
     CompAxon(cellCompParamsPtr, step);
     return;
-}
+} */
 
-void CompDend(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompParamsPtr, StepData step)
+void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp)
 {
   private
     mod_prec *chPrms_v;
@@ -72,9 +72,7 @@ void CompDend(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompPar
     chComps_r = &(cellCompParamsPtr[PARAM_SIZE + DEND_CAL]);      //&cellCompParamsPtr->newCellState->dend.Calcium_r;
     chComps_s = &(cellCompParamsPtr[PARAM_SIZE + DEND_P]);        //&cellCompParamsPtr->newCellState->dend.Potassium_s;
     chComps_newI_CaH = &(cellCompParamsPtr[PARAM_SIZE + DEND_I]); //&cellCompParamsPtr->newCellState->dend.I_CaH;
-    DendCurrVolt(chComps_iC, step.iApp, chComps_vDend, chComps_newVDend, chComps_vSoma, chComps_q, chComps_r, chComps_s, chComps_newI_CaH);
-    write_imageui(t_cellVDendPtr, (int2)(step.x, step.y), (uint4)(as_uint2(*chComps_newVDend), (uint2)(0, 0)));
-
+    DendCurrVolt(chComps_iC, iApp, chComps_vDend, chComps_newVDend, chComps_vSoma, chComps_q, chComps_r, chComps_s, chComps_newI_CaH);
     return;
 }
 
@@ -186,7 +184,7 @@ void DendCurrVolt(mod_prec chComps_iC, mod_prec iApp, private mod_prec *chComps_
     I_K_Ca = G_K_CA * s * (prevV_dend - V_K);
     // Leakage current I_ld
     I_ld = G_LD * (prevV_dend - V_L);
-    // Inward anomalous rectifier I_h
+    // Inward anomalous rectifier I_h 
     I_h = G_H * q * (prevV_dend - V_H);
 
     dVd_dt = (-(I_CaH + I_sd + I_ld + I_K_Ca + I_c + I_h) + I_app) / C_M;
@@ -216,7 +214,8 @@ mod_prec IcNeighbors(private mod_prec *cellCompParamsPtr, mod_prec prevV_dend)
     return I_c;
 }
 
-void CompSoma(private mod_prec *cellCompParamsPtr, StepData step)
+ 
+void CompSoma(private mod_prec *cellCompParamsPtr)
 {
   private
     mod_prec *chPrms_v;
@@ -424,7 +423,7 @@ void SomaCurrVolt(private mod_prec *chComps_g_CaL, private mod_prec *chComps_vDe
     return;
 }
 
-void CompAxon(private mod_prec *cellCompParamsPtr, StepData step)
+void CompAxon(private mod_prec *cellCompParamsPtr)
 {
 
   private
@@ -555,10 +554,10 @@ iApp: Extenal input of the dendrite
 i: Current simulation step 
 
 Retreive the external input of the dedrite 
-and update the previous and new state of the current cell.
+and update the previous and new state of the current cell. 
 Then Compute the new variables of the current cell with ComputeOneCell.
 **/
-__kernel void compute_kernel(write_only image2d_t t_cellVDendPtr, global mod_prec *cellStatePtr, global mod_prec *cellCompParamsPtr, mod_prec iApp, uint i)
+__kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cellVDendPtr, mod_prec iApp, int i)
 {
 
   private
@@ -567,54 +566,53 @@ __kernel void compute_kernel(write_only image2d_t t_cellVDendPtr, global mod_pre
     int y = get_global_id(0);
     int x = get_global_id(1);
 
-    // Previous cell state in indices 0-26 
-    // Next cell state in indices 27-53
+    int offset = (y * IO_NETWORK_DIM2 + x) * PARAM_SIZE;
     for (int idx = 0; idx < STATE_SIZE; idx++)
     {
         // Previous cell state
-        cellCompParamsPtrPrivate[idx] = cellStatePtr[(i % 2) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx];
+        cellCompParamsPtrPrivate[idx] = cellStatePtr[offset + idx];
         // Next cell state
-        cellCompParamsPtrPrivate[PARAM_SIZE + idx] = cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx];
+        cellCompParamsPtrPrivate[PARAM_SIZE + idx] = cellCompParamsPtrPrivate[idx];
     }
 
     // Copy neighbour data to private pointer
     for (int idx = STATE_SIZE; idx < PARAM_SIZE; idx++)
     {
-        cellCompParamsPtrPrivate[idx] = cellCompParamsPtr[(y * IO_NETWORK_DIM2 + x) * LOCAL_PARAM_SIZE + idx];
+        cellCompParamsPtrPrivate[idx] = cellStatePtr[offset + idx];
     }
 
     // Debug print
-    if (i < 5 && x == 0 && y == 0)
+    /* if (i < 5 && x == 0 && y == 0)
     {
-        for (int idx = 0; idx < LOCAL_PARAM_SIZE; idx++)
+        printf("kernel start\n");
+        for (int idx = 0; idx < STATE_SIZE; idx++)
         {
-            printf("precompute  i=%d idx=%d val=%f\n", i, idx, cellCompParamsPtrPrivate[idx]);    
+            printf("kernel i=%d idx=%d val=%f\n", i, idx, cellStatePtr[offset+idx]);
         }
-    }
+        //printf("kernel x=%d y=%d net=%d y*net=%d y*net+x=%d swp=%d tot=%d    %f\n", x, y, IO_NETWORK_DIM2, y * IO_NETWORK_DIM2, y * IO_NETWORK_DIM2 + x, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V]);
+    } */
 
 
     //Step data that needs to go with the ptr to access correct indices
-    StepData step;
-    step.iApp = iApp;
-    step.i = i;
-    step.x = x;
-    step.y = y;
-
-    ComputeOneCell(t_cellVDendPtr, cellCompParamsPtrPrivate, step);
+    CompDend(cellCompParamsPtrPrivate, iApp);
+    CompSoma(cellCompParamsPtrPrivate);
+    CompAxon(cellCompParamsPtrPrivate);
 
     // Copy data back
     for (int idx = 0; idx < STATE_SIZE; idx++)
     {
-        cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx] = cellCompParamsPtrPrivate[PARAM_SIZE + idx];
+        cellStatePtr[offset + idx] = cellCompParamsPtrPrivate[PARAM_SIZE + idx];
     }
+    cellVDendPtr[y*IO_NETWORK_DIM2 + x] = cellCompParamsPtrPrivate[PARAM_SIZE + DEND_V];
 
     // Debug print
-    if (i < 5 && x == 0 && y == 0)
+    /* if (i < 5 && x == 0 && y == 0)
     {
+        printf("kernel end\n");
         for (int idx = 0; idx < STATE_SIZE; idx++)
         {
-            printf("kernel i=%d idx=%d val=%f\n", i, idx, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + idx]);    
+            printf("kernel i=%d idx=%d val=%f\n", i, idx, cellStatePtr[offset+idx]);
         }
         //printf("kernel x=%d y=%d net=%d y*net=%d y*net+x=%d swp=%d tot=%d    %f\n", x, y, IO_NETWORK_DIM2, y * IO_NETWORK_DIM2, y * IO_NETWORK_DIM2 + x, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V]);
-    }
+    } */
 }
