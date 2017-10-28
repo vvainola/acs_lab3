@@ -14,7 +14,7 @@ LDFLAGS = -I $(CUDA_INSTALL_PATH)/include -L $(CUDA_INSTALL_PATH)/lib64
 ifeq ($(shell uname),Darwin)
 	LDFLAGS = -framework OpenCL
 else
-	LDFLAGS += -lOpenCL -lm 
+	LDFLAGS += -lOpenCL -lm -lpthread
 endif
 
 # define C source files

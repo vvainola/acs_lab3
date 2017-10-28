@@ -1,4 +1,5 @@
 #include "variables.h"
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 typedef double mod_prec;
 //typedef float mod_prec;
@@ -6,7 +7,7 @@ typedef double mod_prec;
 // private struct for each thread so that get_global_id does not need to be called everywhere
 typedef struct StepData
 {
-    //mod_prec iApp; // External input of the dendrite
+    mod_prec iApp; // External input of the dendrite
     int i;         // Only for debug
     int x;         // Only for debug
     int y;         // Only for debug
@@ -14,8 +15,8 @@ typedef struct StepData
     //int newCellIdx;
 } StepData;
 
-void ComputeOneCell(private mod_prec *cellCompParamsPtr, mod_prec iApp, StepData step);
-void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp, StepData step);
+void ComputeOneCell(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompParamsPtr, StepData step);
+void CompDend(write_only image2d_t t_cellVDendPtr, private mod_prec *cellCompParamsPtr, StepData step);
 void DendHCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void DendCaCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void DendKCurr(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1);

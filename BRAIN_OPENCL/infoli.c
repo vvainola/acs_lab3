@@ -19,14 +19,22 @@
  * state and runs the model calculations.
  *
  */
-#define min(a,b)            (((a) < (b)) ? (a) : (b))
-#define max(a,b)            (((a) > (b)) ? (a) : (b))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 
 #include "infoli.h"
 #include "init.h"
 #include "ioFile.h"
+#include <pthread.h>
+#define THREADED 0
+
+const char *getErrorString(cl_int error);
 
 typedef unsigned long long timestamp_t;
+
+timestamp_t tWriteFile, tWriteFileStart, tWriteFileEnd;
+FILE *pOutFile;
+char temp[100]; // warning: this buffer may overflow
 
 static timestamp_t get_timestamp()
 {
@@ -35,10 +43,52 @@ static timestamp_t get_timestamp()
     return now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
 }
 
+struct write_to_file_param
+{
+    int i;
+    cl_mod_prec *cellStatePtr;
+};
+
+void *write_to_file(void *args)
+{
+    // write output to file
+    struct write_to_file_param *data = (struct write_to_file_param *)args;
+    int i = data->i;
+    cl_mod_prec *cellStatePtr = data->cellStatePtr;
+
+    if (EXTRA_TIMING)
+    {
+        tWriteFileStart = get_timestamp();
+    }
+    int index = ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + AXON_V;
+    int j, k;
+    for (j = 0; j < IO_NETWORK_DIM1; j++)
+    {
+        for (k = 0; k < IO_NETWORK_DIM2; k++)
+        {
+            writeOutputDouble(
+                temp,
+                cellStatePtr[index + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE],
+                pOutFile);
+        }
+    }
+
+    writeOutput(temp, ("\n"), pOutFile);
+    if (EXTRA_TIMING)
+    {
+        tWriteFileEnd = get_timestamp();
+        tWriteFile += (tWriteFileEnd - tWriteFileStart);
+    }
+
+    pthread_exit(NULL);
+}
+
 int main(int argc, char *argv[])
 {
+    pthread_t write_thread;
+    struct write_to_file_param args;
+    DEBUG_PRINT(("Threaded: %d\n", THREADED));
     char *outFileName = "InferiorOlive_Output.txt";
-    FILE *pOutFile;
     cl_uint i, j, k, p, q;
     int simSteps = 0;
     int simTime = 0;
@@ -47,15 +97,19 @@ int main(int argc, char *argv[])
     cl_mod_prec *cellStatePtr;
     cl_mod_prec *cellCompParamsPtr;
     cl_mod_prec iApp;
-
     int seedvar;
-    char temp[100]; //warning: this buffer may overflow
-    timestamp_t t0, t1, usecs, tNeighbourStart, tNeighbourEnd, tComputeStart, tComputeEnd, tReadStart, tReadEnd, tWriteStateStart, tWriteStateEnd, tWriteCompStart, tWriteCompEnd, tInitStart, tInitEnd, tLoopStart, tLoopEnd, tWriteFileStart, tWriteFileEnd;
-    timestamp_t tNeighbour, tCompute, tUpdate, tRead, tWriteFile, tInit, tLoop;
+    timestamp_t t0, t1, usecs, tNeighbourStart, tNeighbourEnd, tComputeStart,
+        tComputeEnd, tReadStart, tReadEnd, tWriteStateStart, tWriteStateEnd,
+        tWriteCompStart, tWriteCompEnd, tInitStart, tInitEnd, tLoopStart, tLoopEnd;
+    timestamp_t tNeighbour, tCompute, tUpdate, tRead, tInit, tLoop;
     tNeighbour = tCompute = tUpdate = tRead = tWriteFile = tInit = tLoop = 0;
 
     cl_event writeDone, neighbourDone, computeDone, readDone;
     cl_int status;
+
+    cl_mod_prec *cellVDendPtr;
+    const size_t origin[3] = {0, 0, 0};
+    const size_t region[3] = {IO_NETWORK_DIM1, IO_NETWORK_DIM2, 1};
 
     t0 = get_timestamp();
     if (EXTRA_TIMING)
@@ -78,10 +132,10 @@ int main(int argc, char *argv[])
     writeOutput(temp, ("#simSteps Time(ms) Input(Iapp) Output(V_axon)\n"), pOutFile);
 
     //Malloc for the array of cellStates and cellCompParams
-    mallocCells(&cellCompParamsPtr, &cellStatePtr);
+    mallocCells(&cellCompParamsPtr, &cellStatePtr, &cellVDendPtr);
 
     //Write initial state values
-    InitState(cellStatePtr);
+    InitState(cellStatePtr, cellVDendPtr);
 
     //Initialize g_CaL
     init_g_CaL(cellStatePtr);
@@ -196,7 +250,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 5: Create device buffers
     //-----------------------------------------------------
-    cl_mem bufferCellState, bufferCellCompParams;
+    cl_mem bufferCellState, bufferCellCompParams, t_cellVDendPtr;
 
     if (status != CL_SUCCESS)
     {
@@ -230,6 +284,33 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    cl_image_format format = {CL_RA, CL_UNSIGNED_INT32};
+
+    cl_image_desc image_desc;
+    image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    image_desc.image_width = IO_NETWORK_DIM1;
+    image_desc.image_height = IO_NETWORK_DIM2;
+    image_desc.image_depth = 1;
+    image_desc.image_array_size = 1;
+    image_desc.image_row_pitch = 0;
+    image_desc.image_slice_pitch = 0;
+    image_desc.num_mip_levels = 0;
+    image_desc.num_samples = 0;
+    image_desc.buffer = NULL;
+
+    t_cellVDendPtr = clCreateImage(
+        context,
+        CL_MEM_READ_WRITE,
+        &format,
+        &image_desc,
+        NULL,
+        &status);
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 5, creating buffer for image\n");
+        exit(-1);
+    }
+
     //-----------------------------------------------------
     // STEP 6: Write host data to device buffers
     //-----------------------------------------------------
@@ -238,23 +319,25 @@ int main(int argc, char *argv[])
         bufferCellState,
         CL_FALSE,
         0,
-        2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 * STATE_SIZE * sizeof(cl_double),
+        2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
         cellStatePtr,
         0,
         NULL,
         &writeDone);
 
-    // Is this needed because cellCompParams array is empty at this point?
-    /* status |= clEnqueueWriteBuffer(
-        cmdQueue,
-        bufferCellCompParams,
-        CL_FALSE,
-        0,
-        IO_NETWORK_SIZE * LOCAL_PARAM_SIZE * sizeof(cl_double),
-        cellCompParamsPtr,
-        0,
-        NULL,
-        NULL); */
+    status |=
+        clEnqueueWriteImage(
+            cmdQueue,
+            t_cellVDendPtr,
+            CL_FALSE,
+            origin,
+            region,
+            0,
+            0,
+            cellVDendPtr,
+            0,
+            NULL,
+            &writeDone);
 
     if (status != CL_SUCCESS)
     {
@@ -391,21 +474,26 @@ int main(int argc, char *argv[])
         neighbourKernel,
         0,
         sizeof(cl_mem),
-        &bufferCellState);
+        &t_cellVDendPtr);
     status |= clSetKernelArg(
         neighbourKernel,
         1,
         sizeof(cl_mem),
         &bufferCellCompParams);
 
-    status = clSetKernelArg(
+    status |= clSetKernelArg(
         computeKernel,
         0,
+        sizeof(cl_mem),
+        &t_cellVDendPtr);
+    status |= clSetKernelArg(
+        computeKernel,
+        1,
         sizeof(cl_mem),
         &bufferCellState);
     status |= clSetKernelArg(
         computeKernel,
-        1,
+        2,
         sizeof(cl_mem),
         &bufferCellCompParams);
 
@@ -418,7 +506,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 10: Configure the work-item structure
     //-----------------------------------------------------
-    
+
     size_t globalWorkSize[2];
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
@@ -454,14 +542,15 @@ int main(int argc, char *argv[])
             2,
             sizeof(cl_uint),
             &i);
+
         status |= clSetKernelArg(
             computeKernel,
-            2,
+            3,
             sizeof(cl_mod_prec),
             &iApp);
         status |= clSetKernelArg(
             computeKernel,
-            3,
+            4,
             sizeof(cl_uint),
             &i);
         if (status != CL_SUCCESS)
@@ -469,9 +558,6 @@ int main(int argc, char *argv[])
             printf("error in step 9\n");
             exit(-1);
         }
-
-        sprintf(temp, "%d %.2f %.1f ", i + 1, i * 0.05, iApp); // start @ 1 because skipping initial values
-        fputs(temp, pOutFile);
 
         if (EXTRA_TIMING)
         {
@@ -544,15 +630,13 @@ int main(int argc, char *argv[])
             //-----------------------------------------------------
             // STEP 11.3: Read output data from device
             //-----------------------------------------------------
-
-            // TODO read only half of buffer instead of whole thing
             clEnqueueReadBuffer(
                 cmdQueue,
                 bufferCellState,
                 CL_TRUE,
-                0,
-                2 * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
-                cellStatePtr,
+                ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
+                IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
+                &cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE],
                 1,
                 &computeDone,
                 NULL);
@@ -572,31 +656,45 @@ int main(int argc, char *argv[])
         // write output to file
         if (WRITE_OUTPUT)
         {
-            //status = clWaitForEvents(1, &readDone);
-            if (EXTRA_TIMING)
+            if (THREADED)
             {
-                tWriteFileStart = get_timestamp();
-            }
-            for (j = 0; j < IO_NETWORK_DIM1; j++)
-            {
-                for (k = 0; k < IO_NETWORK_DIM2; k++)
-                {
-                    // DEBUG
-                    /* if (i == 0)
-                    {
-                         int u;
-                         for (u = 0; u < STATE_SIZE; u++)
-                        {
-                            printf("%d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + u]);
-                        }  
-                        //printf("main %d, %f\n", i, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V]);
-                        //printf("\n");
-                    } */
+                // Wait for previous data to be written to file
+                if (i)
+                    pthread_join(write_thread, NULL);
 
-                    writeOutputDouble(temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE + AXON_V], pOutFile);
+                // prepare data
+                args.i = i;
+                args.cellStatePtr = cellStatePtr; // Doesn't change
+
+                // Could also be moved to pthread.
+                sprintf(temp, "%d %.2f %.1f ", i + 1, i * 0.05,
+                        iApp); // start @ 1 because skipping initial values
+                fputs(temp, pOutFile);
+                // Create thread
+                pthread_create(&write_thread, NULL, write_to_file,
+                               (void *)&args);
+            }
+            else
+            {
+                sprintf(temp, "%d %.2f %.1f ", i + 1, i * 0.05,
+                        iApp); // start @ 1 because skipping initial values
+                fputs(temp, pOutFile);
+                if (EXTRA_TIMING)
+                {
+                    tWriteFileStart = get_timestamp();
+                }
+                for (j = 0; j < IO_NETWORK_DIM1; j++)
+                {
+                    for (k = 0; k < IO_NETWORK_DIM2; k++)
+                    {
+                        writeOutputDouble(
+                            temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE 
+                                        + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE
+                                        + AXON_V],
+                            pOutFile);
+                    }
                 }
             }
-
             writeOutput(temp, ("\n"), pOutFile);
             if (EXTRA_TIMING)
             {
@@ -605,6 +703,11 @@ int main(int argc, char *argv[])
             }
         }
     }
+
+    // Wait for final data to be written to file
+    if (WRITE_OUTPUT && THREADED)
+        pthread_join(write_thread, NULL);
+
     if (EXTRA_TIMING)
     {
         tLoopEnd = get_timestamp();
@@ -644,6 +747,7 @@ int main(int argc, char *argv[])
     clReleaseCommandQueue(cmdQueue);
     clReleaseMemObject(bufferCellState);
     clReleaseMemObject(bufferCellCompParams);
+    clReleaseMemObject(t_cellVDendPtr);
     clReleaseContext(context);
 
     //Free up memory and close files
@@ -653,81 +757,147 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
-/* 
-const char getErrorString(cl_int error)
+
+const char *getErrorString(cl_int error)
 {
-switch(error){
+    switch (error)
+    {
     // run-time and JIT compiler errors
-    case 0: return "CL_SUCCESS";
-    case -1: return "CL_DEVICE_NOT_FOUND";
-    case -2: return "CL_DEVICE_NOT_AVAILABLE";
-    case -3: return "CL_COMPILER_NOT_AVAILABLE";
-    case -4: return "CL_MEM_OBJECT_ALLOCATION_FAILURE";
-    case -5: return "CL_OUT_OF_RESOURCES";
-    case -6: return "CL_OUT_OF_HOST_MEMORY";
-    case -7: return "CL_PROFILING_INFO_NOT_AVAILABLE";
-    case -8: return "CL_MEM_COPY_OVERLAP";
-    case -9: return "CL_IMAGE_FORMAT_MISMATCH";
-    case -10: return "CL_IMAGE_FORMAT_NOT_SUPPORTED";
-    case -11: return "CL_BUILD_PROGRAM_FAILURE";
-    case -12: return "CL_MAP_FAILURE";
-    case -13: return "CL_MISALIGNED_SUB_BUFFER_OFFSET";
-    case -14: return "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST";
-    case -15: return "CL_COMPILE_PROGRAM_FAILURE";
-    case -16: return "CL_LINKER_NOT_AVAILABLE";
-    case -17: return "CL_LINK_PROGRAM_FAILURE";
-    case -18: return "CL_DEVICE_PARTITION_FAILED";
-    case -19: return "CL_KERNEL_ARG_INFO_NOT_AVAILABLE";
+    case 0:
+        return "CL_SUCCESS";
+    case -1:
+        return "CL_DEVICE_NOT_FOUND";
+    case -2:
+        return "CL_DEVICE_NOT_AVAILABLE";
+    case -3:
+        return "CL_COMPILER_NOT_AVAILABLE";
+    case -4:
+        return "CL_MEM_OBJECT_ALLOCATION_FAILURE";
+    case -5:
+        return "CL_OUT_OF_RESOURCES";
+    case -6:
+        return "CL_OUT_OF_HOST_MEMORY";
+    case -7:
+        return "CL_PROFILING_INFO_NOT_AVAILABLE";
+    case -8:
+        return "CL_MEM_COPY_OVERLAP";
+    case -9:
+        return "CL_IMAGE_FORMAT_MISMATCH";
+    case -10:
+        return "CL_IMAGE_FORMAT_NOT_SUPPORTED";
+    case -11:
+        return "CL_BUILD_PROGRAM_FAILURE";
+    case -12:
+        return "CL_MAP_FAILURE";
+    case -13:
+        return "CL_MISALIGNED_SUB_BUFFER_OFFSET";
+    case -14:
+        return "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST";
+    case -15:
+        return "CL_COMPILE_PROGRAM_FAILURE";
+    case -16:
+        return "CL_LINKER_NOT_AVAILABLE";
+    case -17:
+        return "CL_LINK_PROGRAM_FAILURE";
+    case -18:
+        return "CL_DEVICE_PARTITION_FAILED";
+    case -19:
+        return "CL_KERNEL_ARG_INFO_NOT_AVAILABLE";
 
     // compile-time errors
-    case -30: return "CL_INVALID_VALUE";
-    case -31: return "CL_INVALID_DEVICE_TYPE";
-    case -32: return "CL_INVALID_PLATFORM";
-    case -33: return "CL_INVALID_DEVICE";
-    case -34: return "CL_INVALID_CONTEXT";
-    case -35: return "CL_INVALID_QUEUE_PROPERTIES";
-    case -36: return "CL_INVALID_COMMAND_QUEUE";
-    case -37: return "CL_INVALID_HOST_PTR";
-    case -38: return "CL_INVALID_MEM_OBJECT";
-    case -39: return "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-    case -40: return "CL_INVALID_IMAGE_SIZE";
-    case -41: return "CL_INVALID_SAMPLER";
-    case -42: return "CL_INVALID_BINARY";
-    case -43: return "CL_INVALID_BUILD_OPTIONS";
-    case -44: return "CL_INVALID_PROGRAM";
-    case -45: return "CL_INVALID_PROGRAM_EXECUTABLE";
-    case -46: return "CL_INVALID_KERNEL_NAME";
-    case -47: return "CL_INVALID_KERNEL_DEFINITION";
-    case -48: return "CL_INVALID_KERNEL";
-    case -49: return "CL_INVALID_ARG_INDEX";
-    case -50: return "CL_INVALID_ARG_VALUE";
-    case -51: return "CL_INVALID_ARG_SIZE";
-    case -52: return "CL_INVALID_KERNEL_ARGS";
-    case -53: return "CL_INVALID_WORK_DIMENSION";
-    case -54: return "CL_INVALID_WORK_GROUP_SIZE";
-    case -55: return "CL_INVALID_WORK_ITEM_SIZE";
-    case -56: return "CL_INVALID_GLOBAL_OFFSET";
-    case -57: return "CL_INVALID_EVENT_WAIT_LIST";
-    case -58: return "CL_INVALID_EVENT";
-    case -59: return "CL_INVALID_OPERATION";
-    case -60: return "CL_INVALID_GL_OBJECT";
-    case -61: return "CL_INVALID_BUFFER_SIZE";
-    case -62: return "CL_INVALID_MIP_LEVEL";
-    case -63: return "CL_INVALID_GLOBAL_WORK_SIZE";
-    case -64: return "CL_INVALID_PROPERTY";
-    case -65: return "CL_INVALID_IMAGE_DESCRIPTOR";
-    case -66: return "CL_INVALID_COMPILER_OPTIONS";
-    case -67: return "CL_INVALID_LINKER_OPTIONS";
-    case -68: return "CL_INVALID_DEVICE_PARTITION_COUNT";
+    case -30:
+        return "CL_INVALID_VALUE";
+    case -31:
+        return "CL_INVALID_DEVICE_TYPE";
+    case -32:
+        return "CL_INVALID_PLATFORM";
+    case -33:
+        return "CL_INVALID_DEVICE";
+    case -34:
+        return "CL_INVALID_CONTEXT";
+    case -35:
+        return "CL_INVALID_QUEUE_PROPERTIES";
+    case -36:
+        return "CL_INVALID_COMMAND_QUEUE";
+    case -37:
+        return "CL_INVALID_HOST_PTR";
+    case -38:
+        return "CL_INVALID_MEM_OBJECT";
+    case -39:
+        return "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR";
+    case -40:
+        return "CL_INVALID_IMAGE_SIZE";
+    case -41:
+        return "CL_INVALID_SAMPLER";
+    case -42:
+        return "CL_INVALID_BINARY";
+    case -43:
+        return "CL_INVALID_BUILD_OPTIONS";
+    case -44:
+        return "CL_INVALID_PROGRAM";
+    case -45:
+        return "CL_INVALID_PROGRAM_EXECUTABLE";
+    case -46:
+        return "CL_INVALID_KERNEL_NAME";
+    case -47:
+        return "CL_INVALID_KERNEL_DEFINITION";
+    case -48:
+        return "CL_INVALID_KERNEL";
+    case -49:
+        return "CL_INVALID_ARG_INDEX";
+    case -50:
+        return "CL_INVALID_ARG_VALUE";
+    case -51:
+        return "CL_INVALID_ARG_SIZE";
+    case -52:
+        return "CL_INVALID_KERNEL_ARGS";
+    case -53:
+        return "CL_INVALID_WORK_DIMENSION";
+    case -54:
+        return "CL_INVALID_WORK_GROUP_SIZE";
+    case -55:
+        return "CL_INVALID_WORK_ITEM_SIZE";
+    case -56:
+        return "CL_INVALID_GLOBAL_OFFSET";
+    case -57:
+        return "CL_INVALID_EVENT_WAIT_LIST";
+    case -58:
+        return "CL_INVALID_EVENT";
+    case -59:
+        return "CL_INVALID_OPERATION";
+    case -60:
+        return "CL_INVALID_GL_OBJECT";
+    case -61:
+        return "CL_INVALID_BUFFER_SIZE";
+    case -62:
+        return "CL_INVALID_MIP_LEVEL";
+    case -63:
+        return "CL_INVALID_GLOBAL_WORK_SIZE";
+    case -64:
+        return "CL_INVALID_PROPERTY";
+    case -65:
+        return "CL_INVALID_IMAGE_DESCRIPTOR";
+    case -66:
+        return "CL_INVALID_COMPILER_OPTIONS";
+    case -67:
+        return "CL_INVALID_LINKER_OPTIONS";
+    case -68:
+        return "CL_INVALID_DEVICE_PARTITION_COUNT";
 
     // extension errors
-    case -1000: return "CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR";
-    case -1001: return "CL_PLATFORM_NOT_FOUND_KHR";
-    case -1002: return "CL_INVALID_D3D10_DEVICE_KHR";
-    case -1003: return "CL_INVALID_D3D10_RESOURCE_KHR";
-    case -1004: return "CL_D3D10_RESOURCE_ALREADY_ACQUIRED_KHR";
-    case -1005: return "CL_D3D10_RESOURCE_NOT_ACQUIRED_KHR";
-    default: return "Unknown OpenCL error";
+    case -1000:
+        return "CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR";
+    case -1001:
+        return "CL_PLATFORM_NOT_FOUND_KHR";
+    case -1002:
+        return "CL_INVALID_D3D10_DEVICE_KHR";
+    case -1003:
+        return "CL_INVALID_D3D10_RESOURCE_KHR";
+    case -1004:
+        return "CL_D3D10_RESOURCE_ALREADY_ACQUIRED_KHR";
+    case -1005:
+        return "CL_D3D10_RESOURCE_NOT_ACQUIRED_KHR";
+    default:
+        return "Unknown OpenCL error";
     }
 }
- */
