@@ -1,9 +1,9 @@
 #include "init.h"
 
-void mallocCells(cl_mod_prec **cellStatePtr, cl_mod_prec **cellVDendPtr)
+void mallocCells(cl_mod_prec **cellStatePtr, cl_mod_prec **cellVDendPtr, cl_mod_prec **cellVAxonPtr)
 {
     int k;
-    DEBUG_PRINT(("cellStatePtr: %luB\n", IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec)));
+    //DEBUG_PRINT(("cellStatePtr: %luB\n", IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec)));
     //Two cell state structs are needed so as to avoid having to synchronize all consumers before they start rewriting the cell state.
     (*cellStatePtr) = malloc(IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec)); //current and next state
     if ((*cellStatePtr) == NULL)
@@ -12,13 +12,20 @@ void mallocCells(cl_mod_prec **cellStatePtr, cl_mod_prec **cellVDendPtr)
         exit(EXIT_FAILURE);
     }
 
-    DEBUG_PRINT(
-        ("cellVDendPtr: %luB\n", IO_NETWORK_SIZE * sizeof(cl_mod_prec)));
+    //DEBUG_PRINT(("cellVDendPtr: %luB\n", IO_NETWORK_SIZE * sizeof(cl_mod_prec)));
     *cellVDendPtr =
         (cl_mod_prec *)malloc(IO_NETWORK_SIZE * sizeof(cl_mod_prec));
     if (*cellVDendPtr == NULL)
     {
         printf("Error: Couldn't malloc for cellVDendPtr\n");
+        exit(EXIT_FAILURE);
+    }
+
+    *cellVAxonPtr =
+        (cl_mod_prec *)malloc(IO_NETWORK_SIZE * sizeof(cl_mod_prec));
+    if (*cellVAxonPtr == NULL)
+    {
+        printf("Error: Couldn't malloc for cellVAxonPtr\n");
         exit(EXIT_FAILURE);
     }
 }

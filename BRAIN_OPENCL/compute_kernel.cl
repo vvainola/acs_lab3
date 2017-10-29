@@ -184,7 +184,7 @@ void DendCurrVolt(mod_prec chComps_iC, mod_prec iApp, private mod_prec *chComps_
     I_K_Ca = G_K_CA * s * (prevV_dend - V_K);
     // Leakage current I_ld
     I_ld = G_LD * (prevV_dend - V_L);
-    // Inward anomalous rectifier I_h 
+    // Inward anomalous rectifier I_h
     I_h = G_H * q * (prevV_dend - V_H);
 
     dVd_dt = (-(I_CaH + I_sd + I_ld + I_K_Ca + I_c + I_h) + I_app) / C_M;
@@ -214,7 +214,6 @@ mod_prec IcNeighbors(private mod_prec *cellCompParamsPtr, mod_prec prevV_dend)
     return I_c;
 }
 
- 
 void CompSoma(private mod_prec *cellCompParamsPtr)
 {
   private
@@ -557,7 +556,7 @@ Retreive the external input of the dedrite
 and update the previous and new state of the current cell. 
 Then Compute the new variables of the current cell with ComputeOneCell.
 **/
-__kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mod_prec *cellVDendPtr, mod_prec iApp)
+__kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mod_prec *cellVDendPtr, write_only global mod_prec *cellVAxonPtr, mod_prec iApp)
 {
 
   private
@@ -592,7 +591,6 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mo
         //printf("kernel x=%d y=%d net=%d y*net=%d y*net+x=%d swp=%d tot=%d    %f\n", x, y, IO_NETWORK_DIM2, y * IO_NETWORK_DIM2, y * IO_NETWORK_DIM2 + x, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V]);
     } */
 
-
     //Step data that needs to go with the ptr to access correct indices
     CompDend(cellCompParamsPtrPrivate, iApp);
     CompSoma(cellCompParamsPtrPrivate);
@@ -603,7 +601,8 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mo
     {
         cellStatePtr[offset + idx] = cellCompParamsPtrPrivate[PARAM_SIZE + idx];
     }
-    cellVDendPtr[y*IO_NETWORK_DIM2 + x] = cellCompParamsPtrPrivate[PARAM_SIZE + DEND_V];
+    cellVDendPtr[y * IO_NETWORK_DIM2 + x] = cellCompParamsPtrPrivate[PARAM_SIZE + DEND_V];
+    cellVAxonPtr[y * IO_NETWORK_DIM2 + x] = cellCompParamsPtrPrivate[PARAM_SIZE + AXON_V];
 
     // Debug print
     /* if (i < 5 && x == 0 && y == 0)

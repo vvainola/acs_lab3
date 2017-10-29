@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 {
     pthread_t write_thread;
     struct write_to_file_param args;
-    DEBUG_PRINT(("Threaded: %d\n", THREADED));
+    //DEBUG_PRINT(("Threaded: %d\n", THREADED));
     char *outFileName = "InferiorOlive_Output.txt";
     cl_uint i, j, k, p, q;
     int simSteps = 0;
@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
     int initSteps;
     cl_mod_prec *cellStatePtr;
     cl_mod_prec *cellVDendPtr;
+    cl_mod_prec *cellVAxonPtr;
     cl_mod_prec iApp;
     int seedvar;
     timestamp_t t0, t1, usecs, tNeighbourStart, tNeighbourEnd, tComputeStart,
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
     writeOutput(temp, ("#simSteps Time(ms) Input(Iapp) Output(V_axon)\n"), pOutFile);
 
     //Malloc for the array of cellStates and cellCompParams
-    mallocCells(&cellStatePtr, &cellVDendPtr);
+    mallocCells(&cellStatePtr, &cellVDendPtr, &cellVAxonPtr);
 
     //Write initial state values
     InitState(cellStatePtr, cellVDendPtr);
@@ -246,7 +247,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 5: Create device buffers
     //-----------------------------------------------------
-    cl_mem bufferCellState, bufferCellVDend;
+    cl_mem bufferCellState, bufferCellVDend, bufferCellVAxon;
 
     bufferCellState = clCreateBuffer(
         context,
@@ -271,6 +272,19 @@ int main(int argc, char *argv[])
     if (status != CL_SUCCESS)
     {
         printf("error in step 5, creating buffer for bufferCellVDend\n");
+        exit(-1);
+    }
+
+    bufferCellVAxon = clCreateBuffer(
+        context,
+        CL_MEM_WRITE_ONLY,
+        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+        NULL,
+        &status);
+
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 5, creating buffer for bufferCellVAxon\n");
         exit(-1);
     }
 
@@ -466,6 +480,11 @@ int main(int argc, char *argv[])
         1,
         sizeof(cl_mem),
         &bufferCellVDend);
+    status |= clSetKernelArg(
+        computeKernel,
+        2,
+        sizeof(cl_mem),
+        &bufferCellVAxon);
     if (status != CL_SUCCESS)
     {
         printf("error in step 9.4\n");
@@ -514,7 +533,7 @@ int main(int argc, char *argv[])
 
         status = clSetKernelArg(
             computeKernel,
-            2,
+            3,
             sizeof(cl_mod_prec),
             &iApp);
         /* status |= clSetKernelArg(
@@ -601,11 +620,11 @@ int main(int argc, char *argv[])
             //-----------------------------------------------------
             clEnqueueReadBuffer(
                 cmdQueue,
-                bufferCellState,
+                bufferCellVAxon,
                 CL_TRUE,
                 0,
-                IO_NETWORK_SIZE * PARAM_SIZE * sizeof(cl_mod_prec),
-                cellStatePtr,
+                IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+                cellVAxonPtr,
                 1,
                 &computeDone,
                 NULL);
@@ -627,6 +646,10 @@ int main(int argc, char *argv[])
         {
             if (THREADED)
             {
+                if (EXTRA_TIMING)
+                {
+                    tWriteFileStart = get_timestamp();
+                }
                 // Wait for previous data to be written to file
                 if (i)
                     pthread_join(write_thread, NULL);
@@ -655,7 +678,7 @@ int main(int argc, char *argv[])
                 for (j = 0; j < IO_NETWORK_SIZE; j++)
                 {
                     writeOutputDouble(
-                        temp, cellStatePtr[j * PARAM_SIZE + AXON_V],
+                        temp, cellVAxonPtr[j],
                         pOutFile);
                 }
             }
@@ -687,7 +710,7 @@ int main(int argc, char *argv[])
         tInit = (tInitEnd - tInitStart);
         tLoop = (tLoopEnd - tLoopStart);
 
-        DEBUG_PRINT(("\n"));
+        //DEBUG_PRINT(("\n"));
         DEBUG_PRINT(("----------------------------------\n"));
         DEBUG_PRINT(("tInit: \t\t %lld \n", tInit));
         DEBUG_PRINT(("tLoop: \t\t %lld \n", tLoop));
