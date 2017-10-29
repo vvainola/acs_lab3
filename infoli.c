@@ -24,7 +24,7 @@
 #include "init.h"
 #include "ioFile.h"
 #include <pthread.h>
-#define THREADED 0
+#define THREADED 1
 
 void getLog(cl_program program, cl_device_id device);
 const char *getErrorString(cl_int error);
@@ -59,7 +59,7 @@ void *write_to_file(void *args)
     {
         tWriteFileStart = get_timestamp();
     }
-    int index = ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + AXON_V;
+    // int index = ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + AXON_V;
     int j, k;
     for (j = 0; j < IO_NETWORK_DIM1; j++)
     {
@@ -67,7 +67,9 @@ void *write_to_file(void *args)
         {
             writeOutputDouble(
                 temp,
-                cellStatePtr[index + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE],
+                cellStatePtr[(k * IO_NETWORK_DIM1 + j) *
+                                       STATE_SIZE +
+                                   AXON_V],
                 pOutFile);
         }
     }
@@ -108,6 +110,9 @@ int main(int argc, char *argv[])
     cl_int   status;
 
     cl_mod_prec *cellVDendPtr;
+    cl_mem dPinnedBufOut;
+    cl_mod_prec *hDataOut;
+
     const size_t origin[3] = {0, 0, 0};
     const size_t region[3] = {IO_NETWORK_DIM1, IO_NETWORK_DIM2, 1};
 
@@ -237,12 +242,6 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     cl_mem bufferCellState, bufferCellCompParams, t_cellVDendPtr;
 
-    if (status != CL_SUCCESS)
-    {
-        printf("error in step 5, creating buffer for bufferiApp\n");
-        exit(-1);
-    }
-
     bufferCellState = clCreateBuffer(context, CL_MEM_READ_WRITE,
                                      2 * IO_NETWORK_DIM1 * IO_NETWORK_DIM2 *
                                          STATE_SIZE * sizeof(cl_mod_prec),
@@ -265,7 +264,28 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    cl_image_format format = {CL_RA, CL_UNSIGNED_INT32};
+    dPinnedBufOut =
+        clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+                       IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
+                       NULL, &status);
+
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 5, creating buffer for dPinnedBufOut\n");
+        exit(-1);
+    }
+
+    hDataOut = (cl_mod_prec *)clEnqueueMapBuffer(cmdQueue,
+                        dPinnedBufOut, CL_TRUE,
+                        CL_MAP_READ, 0, IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec), 0,
+                        NULL, NULL, &status);
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 5, creating buffer for mappedbuffer\n");
+        exit(-1);
+    }
+
+    cl_image_format format = {CL_RG, CL_UNSIGNED_INT32};
 
     cl_image_desc image_desc;
     image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
@@ -374,7 +394,7 @@ int main(int argc, char *argv[])
     free(computeBuffer);
 
     // Compile program
-    const char options[] = "-cl-std=CL1.2";
+    const char options[] = "-cl-std=CL1.2 ";
     status = clBuildProgram(neighbourProgram, 1, &devices[device_id], options,
                             NULL, NULL);
     if (status != CL_SUCCESS)
@@ -438,13 +458,13 @@ int main(int argc, char *argv[])
 
     if (status != CL_SUCCESS)
     {
-        printf("error in step 9\n");
+        printf("error in step 9 %d\n", status);
         exit(-1);
     }
 
     //-----------------------------------------------------
     // STEP 10: Configure the work-item structure
-    //-----------------------------------------------------
+    // -----------------------------------------------------
     size_t globalWorkSize[2];
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
@@ -550,16 +570,34 @@ int main(int argc, char *argv[])
             //     1,
             //     &computeDone,
             //     NULL);
-            clEnqueueReadBuffer(
+            // double hData[25];
+            //   status = clEnqueueReadBuffer(cmdQueue, buffer_debug, CL_TRUE, 0,25*sizeof(double), hData, 0, NULL, NULL);
+            //
+            //   if (i < 5){
+            //      for (int j = 0; j < 25; j++)
+            //                 printf("%f ", hData[j]);
+            //         printf("\n");
+            //         }
+            //
+            // status = clEnqueueReadBuffer(
+            //     cmdQueue, bufferCellState, CL_TRUE,
+            //     ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE *
+            //         sizeof(cl_mod_prec),
+            //     IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
+            //     &cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE], 1,
+            //     &computeDone, NULL);
+
+            status = clEnqueueReadBuffer(
                 cmdQueue, bufferCellState, CL_TRUE,
                 ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE *
                     sizeof(cl_mod_prec),
                 IO_NETWORK_SIZE * STATE_SIZE * sizeof(cl_mod_prec),
-                &cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE], 1,
+                hDataOut, 1,
                 &computeDone, NULL);
+
             if (status != CL_SUCCESS)
             {
-                printf("error in reading data\n");
+                printf("error in reading data %d\n", (status));
                 exit(-1);
             }
         }
@@ -580,7 +618,7 @@ int main(int argc, char *argv[])
 
                 // prepare data
                 args.i = i;
-                args.cellStatePtr = cellStatePtr; // Doesn't change
+                args.cellStatePtr = hDataOut; // Doesn't change
 
                 // Could also be moved to pthread.
                 sprintf(temp, "%d %.2f %.1f ", i + 1, i * 0.05,
@@ -599,14 +637,13 @@ int main(int argc, char *argv[])
                 {
                     tWriteFileStart = get_timestamp();
                 }
+
                 for (j = 0; j < IO_NETWORK_DIM1; j++)
                 {
                     for (k = 0; k < IO_NETWORK_DIM2; k++)
                     {
                         writeOutputDouble(
-                            temp, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE *
-                                                   STATE_SIZE +
-                                               (k * IO_NETWORK_DIM1 + j) *
+                            temp, hDataOut[(k * IO_NETWORK_DIM1 + j) *
                                                    STATE_SIZE +
                                                AXON_V],
                                                pOutFile);

@@ -63,10 +63,9 @@ void CompDend(write_only image2d_t t_cellVDendPtr, global mod_prec *cellCompPara
                            s);
     cellCompParamsPtr[step.newCellIdx + DEND_V] = retVals.ret1;
     cellCompParamsPtr[step.newCellIdx + DEND_I] = retVals.ret2;
-    write_imageui(t_cellVDendPtr, (int2)(step.x, step.y), (uint4)(as_uint2(retVals.ret1), (uint2)(0,0)));
-    // DEBUG
-    /* printf("%f\n", cellCompParamsPtr[step.newCellIdx + DEND_V]);
-    printf("%f\n\n", cellCompParamsPtr[step.newCellIdx + DEND_I]); */
+    double2 data;
+    data.lo = retVals.ret1;
+    write_imageui(t_cellVDendPtr, (int2)(step.x, step.y), as_uint4(data));
 
     return;
 }
