@@ -16,13 +16,13 @@ typedef struct StepData
 } StepData;
 
 void ComputeOneCell(private mod_prec *cellCompParamsPtr);
-void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp);
+void CompDend(private mod_prec *cellCompParamsPtr);
 void DendHCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void DendCaCurr(private mod_prec *chPrms_v, private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_newComp1);
 void DendKCurr(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1);
 void DendCal(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevComp2, private mod_prec *chPrms_newComp1);
 void DendCurrVolt(mod_prec chComps_iC,
-                  mod_prec iApp,
+                  private mod_prec *chComps_iApp,
                   private mod_prec *chComps_vDend,
                   private mod_prec *chComps_newVDend,
                   private mod_prec *chComps_vSoma,

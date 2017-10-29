@@ -10,7 +10,7 @@
     return;
 } */
 
-void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp)
+void CompDend(private mod_prec *cellCompParamsPtr)
 {
   private
     mod_prec *chPrms_v;
@@ -64,7 +64,7 @@ void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp)
 
     chComps_iC = IcNeighbors(cellCompParamsPtr, cellCompParamsPtr[DEND_V]);
     //IcNeighbors(cellCompParamsPtr->neighVdend, cellCompParamsPtr->prevCellState->dend.V_dend);
-    //chComps_iApp = &iApp;                                       //&cellCompParamsPtr->iAppIn;
+    chComps_iApp = &(cellCompParamsPtr[I_APP]);                                       //&cellCompParamsPtr->iAppIn;
     chComps_vDend = &(cellCompParamsPtr[DEND_V]);                 //&cellCompParamsPtr->prevCellState->dend.V_dend;
     chComps_newVDend = &(cellCompParamsPtr[PARAM_SIZE + DEND_V]); //&cellCompParamsPtr->newCellState->dend.V_dend;
     chComps_vSoma = &(cellCompParamsPtr[SOMA_V]);                 //&cellCompParamsPtr->prevCellState->soma.V_soma
@@ -72,7 +72,7 @@ void CompDend(private mod_prec *cellCompParamsPtr, mod_prec iApp)
     chComps_r = &(cellCompParamsPtr[PARAM_SIZE + DEND_CAL]);      //&cellCompParamsPtr->newCellState->dend.Calcium_r;
     chComps_s = &(cellCompParamsPtr[PARAM_SIZE + DEND_P]);        //&cellCompParamsPtr->newCellState->dend.Potassium_s;
     chComps_newI_CaH = &(cellCompParamsPtr[PARAM_SIZE + DEND_I]); //&cellCompParamsPtr->newCellState->dend.I_CaH;
-    DendCurrVolt(chComps_iC, iApp, chComps_vDend, chComps_newVDend, chComps_vSoma, chComps_q, chComps_r, chComps_s, chComps_newI_CaH);
+    DendCurrVolt(chComps_iC, chComps_iApp, chComps_vDend, chComps_newVDend, chComps_vSoma, chComps_q, chComps_r, chComps_s, chComps_newI_CaH);
     return;
 }
 
@@ -159,7 +159,7 @@ void DendCal(private mod_prec *chPrms_prevComp1, private mod_prec *chPrms_prevCo
     return;
 }
 
-void DendCurrVolt(mod_prec chComps_iC, mod_prec iApp, private mod_prec *chComps_vDend, private mod_prec *chComps_newVDend, private mod_prec *chComps_vSoma, private mod_prec *chComps_q, private mod_prec *chComps_r, private mod_prec *chComps_s, private mod_prec *chComps_newI_CaH)
+void DendCurrVolt(mod_prec chComps_iC, private mod_prec *chComps_iApp, private mod_prec *chComps_vDend, private mod_prec *chComps_newVDend, private mod_prec *chComps_vSoma, private mod_prec *chComps_q, private mod_prec *chComps_r, private mod_prec *chComps_s, private mod_prec *chComps_newI_CaH)
 {
 
     //Loca variables
@@ -167,7 +167,7 @@ void DendCurrVolt(mod_prec chComps_iC, mod_prec iApp, private mod_prec *chComps_
 
     //Get inputs
     mod_prec I_c = chComps_iC;            //chComps->iC;
-    mod_prec I_app = iApp;                //*chComps->iApp;
+    mod_prec I_app = *chComps_iApp;       //*chComps->iApp;
     mod_prec prevV_dend = *chComps_vDend; //*chComps->vDend;
     mod_prec prevV_soma = *chComps_vSoma; //*chComps->vSoma;
     mod_prec q = *chComps_q;              //*chComps->q;
@@ -579,6 +579,7 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mo
     {
         cellCompParamsPtrPrivate[idx] = cellStatePtr[offset + idx];
     }
+    cellCompParamsPtrPrivate[I_APP] = iApp;
 
     // Debug print
     /* if (i < 5 && x == 0 && y == 0)
@@ -592,7 +593,7 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mo
     } */
 
     //Step data that needs to go with the ptr to access correct indices
-    CompDend(cellCompParamsPtrPrivate, iApp);
+    CompDend(cellCompParamsPtrPrivate);
     CompSoma(cellCompParamsPtrPrivate);
     CompAxon(cellCompParamsPtrPrivate);
 
