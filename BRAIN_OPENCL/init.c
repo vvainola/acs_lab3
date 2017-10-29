@@ -21,13 +21,13 @@ void mallocCells(cl_mod_prec **cellStatePtr, cl_mod_prec **cellVDendPtr, cl_mod_
         exit(EXIT_FAILURE);
     }
 
-    *cellVAxonPtr =
-        (cl_mod_prec *)malloc(IO_NETWORK_SIZE * sizeof(cl_mod_prec));
-    if (*cellVAxonPtr == NULL)
-    {
-        printf("Error: Couldn't malloc for cellVAxonPtr\n");
-        exit(EXIT_FAILURE);
-    }
+//     *cellVAxonPtr =
+//         (cl_mod_prec *)malloc(IO_NETWORK_SIZE * sizeof(cl_mod_prec));
+//     if (*cellVAxonPtr == NULL)
+//     {
+//         printf("Error: Couldn't malloc for cellVAxonPtr\n");
+//         exit(EXIT_FAILURE);
+//     }
 }
 
 void InitState(cl_mod_prec *cellStatePtr, cl_mod_prec *cellVDendPtr)

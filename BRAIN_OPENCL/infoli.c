@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 5: Create device buffers
     //-----------------------------------------------------
-    cl_mem bufferCellState, bufferCellVDend, bufferCellVAxon;
+    cl_mem bufferCellState, bufferCellVDend, bufferCellVAxon, bufferPinnedCellVAxon;
 
     bufferCellState = clCreateBuffer(
         context,
@@ -275,6 +275,16 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    bufferPinnedCellVAxon = clCreateBuffer(context,
+                        CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+                        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+                        NULL, &status);
+
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 5, creating buffer for bufferPinnedCellVAxon\n");
+        exit(-1);
+    }
     //-----------------------------------------------------
     // STEP 6: Write host data to device buffers
     //-----------------------------------------------------
@@ -306,6 +316,16 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    cellVAxonPtr = (cl_mod_prec *)clEnqueueMapBuffer(cmdQueue,
+                       bufferPinnedCellVAxon, CL_TRUE,
+                       CL_MAP_READ, 0, IO_NETWORK_SIZE * sizeof(cl_mod_prec), 0,
+                       NULL, NULL, &status);
+
+     if (status != CL_SUCCESS)
+     {
+         printf("error in step 6, creating mapped buffer for cellVAxonPtr\n");
+         exit(-1);
+     }
     //-----------------------------------------------------
     // STEP 7: Create and compile the program
     //-----------------------------------------------------
@@ -710,6 +730,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 12: Release OpenCL resources
     //-----------------------------------------------------
+    clEnqueueUnmapMemObject(cmdQueue,bufferPinnedCellVAxon,cellVAxonPtr, 0, NULL, NULL);
     clReleaseKernel(neighbourKernel);
     clReleaseKernel(computeKernel);
     clReleaseProgram(neighbourProgram);
@@ -717,6 +738,8 @@ int main(int argc, char *argv[])
     clReleaseCommandQueue(cmdQueue);
     clReleaseMemObject(bufferCellState);
     clReleaseMemObject(bufferCellVDend);
+    clReleaseMemObject(bufferCellVAxon);
+    clReleaseMemObject(bufferPinnedCellVAxon);
     clReleaseContext(context);
 
     //Free up memory and close files
