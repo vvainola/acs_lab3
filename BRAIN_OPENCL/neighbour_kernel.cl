@@ -1,50 +1,39 @@
 #include "kernel.h"
 
 /**
-Input: cellCompParamsPtr, cellStatePtr, i 
+Input: cellCompParamsPtr, cellStatePtr, i
+cellCompParamsPtr: Array of struct which stores values of neighbours for each
+cell.
 cellStatePtr: Array with values for each cell.
-i: current simulation step  
+i: current simulation step
 
 
 Retreive the voltage of the dendrite (V_dend) from each neighbour
 **/
 
-__kernel void neighbour_kernel(write_only global mod_prec *cellStatePtr, read_only global mod_prec *cellVDendPtr)
+constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE |
+                             CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
+
+__kernel void neighbour_kernel(read_only image2d_t cellVDendPtr,
+                               write_only global mod_prec *cellStatePtr)
 {
-	int n, p, q;
+    int n, p, q;
 
-	n = 0;
-	int y = get_global_id(0);
-	int x = get_global_id(1);
-	int offset = (y * IO_NETWORK_DIM2 + x) * PARAM_SIZE + STATE_SIZE;
+    n = 0;
+    int y = get_global_id(0);
+    int x = get_global_id(1);
+    int offset = (y * IO_NETWORK_DIM2 + x) * PARAM_SIZE + STATE_SIZE;
 
-	for (p = x - 1; p <= x + 1; p++)
-	{
-		for (q = y - 1; q <= y + 1; q++)
-		{
-			if (((p != x) || (q != y)) && ((p >= 0) && (q >= 0)) && ((p < IO_NETWORK_DIM1) && (q < IO_NETWORK_DIM2)))
-			{
-				cellStatePtr[offset + (n++)] = cellVDendPtr[q * IO_NETWORK_DIM2 + p];
-			}
-			else if (p == x && q == y)
-			{
-				; // do nothing, this is the cell itself
-			}
-			else
-			{
-				//store same V_dend so that Ic becomes zero by the subtraction
-				cellStatePtr[offset + (n++)] = cellVDendPtr[y * IO_NETWORK_DIM2 + x];
-			}
-		}
-	}
+    for (p = x - 1; p <= x + 1; p++)
+    {
+        for (q = y - 1; q <= y + 1; q++)
+        {
 
-	/*
-	//Debug print
-	if (i < 5 && x == 0 && y == 0)
-	{
-		for (int idx = 0; idx < PARAM_SIZE; idx++)
-		{
-			printf("neighbour i=%d idx=%d val=%f\n", i, idx, cellStatePtr[offset - STATE_SIZE + idx]);
-		}
-	} */
+            double2 temp = as_double2(read_imageui(cellVDendPtr, sampler, (int2)(p, q)));
+            cellStatePtr[offset + (n++)] = temp.lo;
+
+            if (p == x && q == y)
+                n = n - 1;
+        }
+    }
 }

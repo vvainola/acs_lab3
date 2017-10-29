@@ -26,7 +26,7 @@
 #include "init.h"
 #include "ioFile.h"
 #include <pthread.h>
-#define THREADED 0
+#define THREADED 1
 
 const char *getErrorString(cl_int error);
 
@@ -249,16 +249,28 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    bufferCellVDend = clCreateBuffer(
-        context,
-        CL_MEM_READ_WRITE,
-        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
-        NULL,
-        &status);
+    const size_t origin[3] = {0, 0, 0};
+    const size_t region[3] = {IO_NETWORK_DIM1, IO_NETWORK_DIM2, 1};
+    cl_image_format format = {CL_RG, CL_UNSIGNED_INT32};
+
+    cl_image_desc image_desc;
+    image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    image_desc.image_width = IO_NETWORK_DIM1;
+    image_desc.image_height = IO_NETWORK_DIM2;
+    image_desc.image_depth = 1;
+    image_desc.image_array_size = 1;
+    image_desc.image_row_pitch = 0;
+    image_desc.image_slice_pitch = 0;
+    image_desc.num_mip_levels = 0;
+    image_desc.num_samples = 0;
+    image_desc.buffer = NULL;
+
+    bufferCellVDend = clCreateImage(context, CL_MEM_READ_WRITE, &format,
+                                   &image_desc, NULL, &status);
 
     if (status != CL_SUCCESS)
     {
-        printf("error in step 5, creating buffer for bufferCellVDend\n");
+        printf("error in step 5, creating image for bufferCellVDend\n");
         exit(-1);
     }
 
@@ -299,16 +311,24 @@ int main(int argc, char *argv[])
         NULL,
         &writeDone);
 
-    status |= clEnqueueWriteBuffer(
-        cmdQueue,
-        bufferCellVDend,
-        CL_FALSE,
-        0,
-        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
-        cellVDendPtr,
-        0,
-        NULL,
-        &writeDone);
+        status |= clEnqueueWriteImage(
+          cmdQueue,
+          bufferCellVDend,
+          CL_FALSE, origin,
+          region,
+          0, 0,
+          cellVDendPtr,
+          0, NULL, &writeDone);
+    // status |= clEnqueueWriteBuffer(
+    //     cmdQueue,
+    //     bufferCellVDend,
+    //     CL_FALSE,
+    //     0,
+    //     IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+    //     cellVDendPtr,
+    //     0,
+    //     NULL,
+    //     &writeDone);
 
     if (status != CL_SUCCESS)
     {
@@ -413,7 +433,7 @@ int main(int argc, char *argv[])
         NULL);
     if (status != CL_SUCCESS)
     {
-        printf("error in step 7, neighbourProgram\n");
+        printf("error in step 7, neighbourProgram: %s\n", getErrorString(status));
         exit(-1);
     }
     status = clBuildProgram(
@@ -425,7 +445,7 @@ int main(int argc, char *argv[])
         NULL);
     if (status != CL_SUCCESS)
     {
-        printf("error in step 7, computeProgram, error code %d\n", status);
+        printf("error in step 7, computeProgram: %s\n", getErrorString(status));
         exit(-1);
     }
 
@@ -451,21 +471,24 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------
     // STEP 9: Set the kernel arguments
     //-----------------------------------------------------
-    status = clSetKernelArg(
+    status |= clSetKernelArg(
         neighbourKernel,
         0,
         sizeof(cl_mem),
-        &bufferCellState);
+        &bufferCellVDend);
+
     if (status != CL_SUCCESS)
     {
         printf("error in step 9.1\n");
         exit(-1);
     }
-    status |= clSetKernelArg(
+
+    status = clSetKernelArg(
         neighbourKernel,
         1,
         sizeof(cl_mem),
-        &bufferCellVDend);
+        &bufferCellState);
+
     if (status != CL_SUCCESS)
     {
         printf("error in step 9.2\n");
@@ -476,17 +499,25 @@ int main(int argc, char *argv[])
         computeKernel,
         0,
         sizeof(cl_mem),
-        &bufferCellState);
+        &bufferCellVDend);
+
     if (status != CL_SUCCESS)
     {
         printf("error in step 9.3\n");
         exit(-1);
     }
+
     status |= clSetKernelArg(
         computeKernel,
         1,
         sizeof(cl_mem),
-        &bufferCellVDend);
+        &bufferCellState);
+
+    if (status != CL_SUCCESS)
+    {
+        printf("error in step 9.4\n");
+        exit(-1);
+    }
     status |= clSetKernelArg(
         computeKernel,
         2,
@@ -494,7 +525,7 @@ int main(int argc, char *argv[])
         &bufferCellVAxon);
     if (status != CL_SUCCESS)
     {
-        printf("error in step 9.4\n");
+        printf("error in step 9.5\n");
         exit(-1);
     }
 

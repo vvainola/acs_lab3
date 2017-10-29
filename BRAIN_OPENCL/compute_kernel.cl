@@ -546,17 +546,17 @@ void AxonCurrVolt(private mod_prec *chComps_vSoma, private mod_prec *chComps_vAx
 }
 
 /**
-Input: cellCompParamsPtr, cellStatePtr, iApp ,i 
+Input: cellCompParamsPtr, cellStatePtr, iApp ,i
 cellCompParamsPtr: Array of struct which stores values of neighbours for each cell.
 cellStatePtr: Array with values for each cell.
 iApp: Extenal input of the dendrite
-i: Current simulation step 
+i: Current simulation step
 
-Retreive the external input of the dedrite 
-and update the previous and new state of the current cell. 
+Retreive the external input of the dedrite
+and update the previous and new state of the current cell.
 Then Compute the new variables of the current cell with ComputeOneCell.
 **/
-__kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mod_prec *cellVDendPtr, write_only global mod_prec *cellVAxonPtr, mod_prec iApp)
+__kernel void compute_kernel(write_only image2d_t cellVDendPtr, global mod_prec *cellStatePtr, write_only global mod_prec *cellVAxonPtr, mod_prec iApp)
 {
 
   private
@@ -581,17 +581,6 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mo
     }
     cellCompParamsPtrPrivate[I_APP] = iApp;
 
-    // Debug print
-    /* if (i < 5 && x == 0 && y == 0)
-    {
-        printf("kernel start\n");
-        for (int idx = 0; idx < STATE_SIZE; idx++)
-        {
-            printf("kernel i=%d idx=%d val=%f\n", i, idx, cellStatePtr[offset+idx]);
-        }
-        //printf("kernel x=%d y=%d net=%d y*net=%d y*net+x=%d swp=%d tot=%d    %f\n", x, y, IO_NETWORK_DIM2, y * IO_NETWORK_DIM2, y * IO_NETWORK_DIM2 + x, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V]);
-    } */
-
     //Step data that needs to go with the ptr to access correct indices
     CompDend(cellCompParamsPtrPrivate);
     CompSoma(cellCompParamsPtrPrivate);
@@ -602,17 +591,10 @@ __kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mo
     {
         cellStatePtr[offset + idx] = cellCompParamsPtrPrivate[PARAM_SIZE + idx];
     }
-    cellVDendPtr[y * IO_NETWORK_DIM2 + x] = cellCompParamsPtrPrivate[PARAM_SIZE + DEND_V];
+
+    double2 data;
+    data.lo = cellCompParamsPtrPrivate[PARAM_SIZE + DEND_V];
+    write_imageui(cellVDendPtr, (int2)(x, y), as_uint4(data));
     cellVAxonPtr[y * IO_NETWORK_DIM2 + x] = cellCompParamsPtrPrivate[PARAM_SIZE + AXON_V];
 
-    // Debug print
-    /* if (i < 5 && x == 0 && y == 0)
-    {
-        printf("kernel end\n");
-        for (int idx = 0; idx < STATE_SIZE; idx++)
-        {
-            printf("kernel i=%d idx=%d val=%f\n", i, idx, cellStatePtr[offset+idx]);
-        }
-        //printf("kernel x=%d y=%d net=%d y*net=%d y*net+x=%d swp=%d tot=%d    %f\n", x, y, IO_NETWORK_DIM2, y * IO_NETWORK_DIM2, y * IO_NETWORK_DIM2 + x, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE, ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V, cellStatePtr[((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + (y * IO_NETWORK_DIM2 + x) * STATE_SIZE + AXON_V]);
-    } */
 }
