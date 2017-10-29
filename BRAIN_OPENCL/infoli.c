@@ -43,34 +43,22 @@ static timestamp_t get_timestamp()
     return now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
 }
 
-struct write_to_file_param
-{
-    int i;
-    cl_mod_prec *cellStatePtr;
-};
-
 void *write_to_file(void *args)
 {
     // write output to file
-    struct write_to_file_param *data = (struct write_to_file_param *)args;
-    int i = data->i;
-    cl_mod_prec *cellStatePtr = data->cellStatePtr;
+    cl_mod_prec *cellVAxonPtr = (cl_mod_prec *)args;
 
     if (EXTRA_TIMING)
     {
         tWriteFileStart = get_timestamp();
     }
-    int index = ((i % 2) ^ 1) * IO_NETWORK_SIZE * STATE_SIZE + AXON_V;
-    int j, k;
-    for (j = 0; j < IO_NETWORK_DIM1; j++)
+
+    int j;
+    for (j = 0; j < IO_NETWORK_SIZE; j++)
     {
-        for (k = 0; k < IO_NETWORK_DIM2; k++)
-        {
-            writeOutputDouble(
-                temp,
-                cellStatePtr[index + (k * IO_NETWORK_DIM1 + j) * STATE_SIZE],
-                pOutFile);
-        }
+        writeOutputDouble(
+            temp, cellVAxonPtr[j],
+            pOutFile);
     }
 
     writeOutput(temp, ("\n"), pOutFile);
@@ -86,7 +74,6 @@ void *write_to_file(void *args)
 int main(int argc, char *argv[])
 {
     pthread_t write_thread;
-    struct write_to_file_param args;
     //DEBUG_PRINT(("Threaded: %d\n", THREADED));
     char *outFileName = "InferiorOlive_Output.txt";
     cl_uint i, j, k, p, q;
@@ -323,7 +310,7 @@ int main(int argc, char *argv[])
     // STEP 7: Create and compile the program
     //-----------------------------------------------------
     /**
-    ** Please check if your kernel files can be opened, 
+    ** Please check if your kernel files can be opened,
     ** especially when running on the server
     **/
     char *computeFileName, *neighbourFileName;
@@ -654,17 +641,13 @@ int main(int argc, char *argv[])
                 if (i)
                     pthread_join(write_thread, NULL);
 
-                // prepare data
-                args.i = i;
-                args.cellStatePtr = cellStatePtr; // Doesn't change
-
                 // Could also be moved to pthread.
                 sprintf(temp, "%d %.2f %.1f ", i + 1, i * 0.05,
                         iApp); // start @ 1 because skipping initial values
                 fputs(temp, pOutFile);
                 // Create thread
                 pthread_create(&write_thread, NULL, write_to_file,
-                               (void *)&args);
+                               (void *)cellVAxonPtr);
             }
             else
             {
@@ -681,12 +664,12 @@ int main(int argc, char *argv[])
                         temp, cellVAxonPtr[j],
                         pOutFile);
                 }
-            }
-            writeOutput(temp, ("\n"), pOutFile);
-            if (EXTRA_TIMING)
-            {
-                tWriteFileEnd = get_timestamp();
-                tWriteFile += (tWriteFileEnd - tWriteFileStart);
+                writeOutput(temp, ("\n"), pOutFile);
+                if (EXTRA_TIMING)
+                {
+                    tWriteFileEnd = get_timestamp();
+                    tWriteFile += (tWriteFileEnd - tWriteFileStart);
+                }
             }
         }
     }
