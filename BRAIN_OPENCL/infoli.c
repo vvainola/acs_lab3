@@ -499,8 +499,9 @@ int main(int argc, char *argv[])
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
 
-    size_t local_work_size = min(4, IO_NETWORK_DIM1);
-    size_t localWorkSize[] = {local_work_size, local_work_size};
+    size_t local_work_size1 = max(1, min(IO_NETWORK_DIM1/8, 16));
+    size_t local_work_size2 = max(1, min(IO_NETWORK_DIM2/8, 16));
+    size_t localWorkSize[] = {local_work_size1, local_work_size2};
 
     if (EXTRA_TIMING)
     {
