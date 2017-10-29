@@ -480,8 +480,8 @@ int main(int argc, char *argv[])
     globalWorkSize[0] = IO_NETWORK_DIM1;
     globalWorkSize[1] = IO_NETWORK_DIM2;
 
-    //size_t local_work_size = min(8, IO_NETWORK_DIM1);
-    //size_t localWorkSize[] = {local_work_size, local_work_size};
+    size_t local_work_size = min(4, IO_NETWORK_DIM1);
+    size_t localWorkSize[] = {local_work_size, local_work_size};
 
     if (EXTRA_TIMING)
     {
@@ -506,22 +506,22 @@ int main(int argc, char *argv[])
 
         // TODO this needs to optimized to similar in CUDA version
         // Set iApp and simulation step parameters
-        status = clSetKernelArg(
+        /* status = clSetKernelArg(
             neighbourKernel,
             2,
             sizeof(cl_uint),
-            &i);
+            &i); */
 
-        status |= clSetKernelArg(
+        status = clSetKernelArg(
             computeKernel,
             2,
             sizeof(cl_mod_prec),
             &iApp);
-        status |= clSetKernelArg(
+        /* status |= clSetKernelArg(
             computeKernel,
             3,
             sizeof(cl_uint),
-            &i);
+            &i); */
         if (status != CL_SUCCESS)
         {
             printf("error in step 11.0\n");
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
             2,
             NULL,
             globalWorkSize,
-            NULL,
+            localWorkSize,
             1,
             &writeDone, // Wait for initial write
             &neighbourDone);
@@ -569,7 +569,7 @@ int main(int argc, char *argv[])
             2,
             NULL,
             globalWorkSize,
-            NULL,
+            localWorkSize,
             1,
             &neighbourDone, // Wait for neighbour done
             &computeDone);

@@ -557,7 +557,7 @@ Retreive the external input of the dedrite
 and update the previous and new state of the current cell. 
 Then Compute the new variables of the current cell with ComputeOneCell.
 **/
-__kernel void compute_kernel(global mod_prec *cellStatePtr, global mod_prec *cellVDendPtr, mod_prec iApp, int i)
+__kernel void compute_kernel(global mod_prec *cellStatePtr, write_only global mod_prec *cellVDendPtr, mod_prec iApp)
 {
 
   private
