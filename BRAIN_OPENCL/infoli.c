@@ -26,8 +26,9 @@
 #include "init.h"
 #include "ioFile.h"
 #include <pthread.h>
-#define THREADED 0
+#define THREADED 1
 
+void getLog(cl_program program, cl_device_id device);
 const char *getErrorString(cl_int error);
 
 typedef unsigned long long timestamp_t;
@@ -274,12 +275,20 @@ int main(int argc, char *argv[])
         printf("error in step 5, creating buffer for bufferCellVAxon\n");
         exit(-1);
     }
-
-    bufferPinnedCellVAxon = clCreateBuffer(context,
+    if(THREADED)
+    {
+        bufferPinnedCellVAxon = clCreateBuffer(context,
                         CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                        IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+                        2*IO_NETWORK_SIZE * sizeof(cl_mod_prec),
                         NULL, &status);
-
+    }
+    else
+    {
+        bufferPinnedCellVAxon = clCreateBuffer(context,
+                          CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+                          IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+                          NULL, &status);
+    }
     if (status != CL_SUCCESS)
     {
         printf("error in step 5, creating buffer for bufferPinnedCellVAxon\n");
@@ -315,12 +324,20 @@ int main(int argc, char *argv[])
         printf("error in step 6, writing data\n");
         exit(-1);
     }
-
-    cellVAxonPtr = (cl_mod_prec *)clEnqueueMapBuffer(cmdQueue,
+    if (THREADED)
+    {
+        cellVAxonPtr = (cl_mod_prec *)clEnqueueMapBuffer(cmdQueue,
                        bufferPinnedCellVAxon, CL_TRUE,
-                       CL_MAP_READ, 0, IO_NETWORK_SIZE * sizeof(cl_mod_prec), 0,
+                       CL_MAP_READ, 0, 2*IO_NETWORK_SIZE * sizeof(cl_mod_prec), 0,
                        NULL, NULL, &status);
-
+    }
+    else
+    {
+        cellVAxonPtr = (cl_mod_prec *)clEnqueueMapBuffer(cmdQueue,
+                         bufferPinnedCellVAxon, CL_TRUE,
+                         CL_MAP_READ, 0, IO_NETWORK_SIZE * sizeof(cl_mod_prec), 0,
+                         NULL, NULL, &status);
+    }
      if (status != CL_SUCCESS)
      {
          printf("error in step 6, creating mapped buffer for cellVAxonPtr\n");
@@ -413,7 +430,8 @@ int main(int argc, char *argv[])
         NULL);
     if (status != CL_SUCCESS)
     {
-        printf("error in step 7, neighbourProgram\n");
+        printf("error in step 7, neighbourProgram, %s\n", getErrorString(status));
+        getLog(neighbourProgram, devices[device_id]);
         exit(-1);
     }
     status = clBuildProgram(
@@ -425,7 +443,8 @@ int main(int argc, char *argv[])
         NULL);
     if (status != CL_SUCCESS)
     {
-        printf("error in step 7, computeProgram, error code %d\n", status);
+        printf("error in step 7, computeProgram, %s\n", getErrorString(status));
+        getLog(computeProgram, devices[device_id]);
         exit(-1);
     }
 
@@ -492,6 +511,13 @@ int main(int argc, char *argv[])
         2,
         sizeof(cl_mem),
         &bufferCellVAxon);
+
+    status |= clSetKernelArg(
+        computeKernel,
+        3,
+        sizeof(cl_mod_prec),
+        &iApp);
+
     if (status != CL_SUCCESS)
     {
         printf("error in step 9.4\n");
@@ -528,30 +554,6 @@ int main(int argc, char *argv[])
         else
         {
             iApp = 0;
-        }
-
-        // TODO this needs to optimized to similar in CUDA version
-        // Set iApp and simulation step parameters
-        /* status = clSetKernelArg(
-            neighbourKernel,
-            2,
-            sizeof(cl_uint),
-            &i); */
-
-        status = clSetKernelArg(
-            computeKernel,
-            3,
-            sizeof(cl_mod_prec),
-            &iApp);
-        /* status |= clSetKernelArg(
-            computeKernel,
-            3,
-            sizeof(cl_uint),
-            &i); */
-        if (status != CL_SUCCESS)
-        {
-            printf("error in step 11.0\n");
-            exit(-1);
         }
 
         if (EXTRA_TIMING)
@@ -625,16 +627,32 @@ int main(int argc, char *argv[])
             //-----------------------------------------------------
             // STEP 11.3: Read output data from device
             //-----------------------------------------------------
-            clEnqueueReadBuffer(
-                cmdQueue,
-                bufferCellVAxon,
-                CL_TRUE,
-                0,
-                IO_NETWORK_SIZE * sizeof(cl_mod_prec),
-                cellVAxonPtr,
-                1,
-                &computeDone,
-                NULL);
+            if(THREADED)
+            {
+              clEnqueueReadBuffer(
+                  cmdQueue,
+                  bufferCellVAxon,
+                  CL_TRUE,
+                  0,
+                  IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+                  &cellVAxonPtr[(i%2)*IO_NETWORK_SIZE],
+                  1,
+                  &computeDone,
+                  NULL);
+            }
+            else
+            {
+              clEnqueueReadBuffer(
+                  cmdQueue,
+                  bufferCellVAxon,
+                  CL_TRUE,
+                  0,
+                  IO_NETWORK_SIZE * sizeof(cl_mod_prec),
+                  cellVAxonPtr,
+                  1,
+                  &computeDone,
+                  NULL);
+            }
             if (status != CL_SUCCESS)
             {
                 printf("error in reading data\n");
@@ -667,7 +685,7 @@ int main(int argc, char *argv[])
                 fputs(temp, pOutFile);
                 // Create thread
                 pthread_create(&write_thread, NULL, write_to_file,
-                               (void *)cellVAxonPtr);
+                               (void *)&cellVAxonPtr[(i%2)*IO_NETWORK_SIZE]);
             }
             else
             {
@@ -892,4 +910,16 @@ const char *getErrorString(cl_int error)
     default:
         return "Unknown OpenCL error";
     }
+}
+
+void getLog(cl_program program, cl_device_id device)
+{
+    size_t len;
+    clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, NULL, NULL,
+                          &len);
+    char *log = malloc(sizeof(char) * (len + 1));
+    clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, len, log,
+                          NULL);
+    printf("Build log: %s\n", log);
+    free(log);
 }
