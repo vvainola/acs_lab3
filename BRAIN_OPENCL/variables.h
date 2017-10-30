@@ -45,9 +45,6 @@
 
 #define WRITE_OUTPUT 1
 
-#define BLOCKSIZEX 32
-#define BLOCKSIZEY 1
-
 #define STATE_SIZE 19
 //#define CELL_STATE_SIZE 27
 #define PARAM_SIZE 27
